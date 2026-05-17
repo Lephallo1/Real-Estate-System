@@ -34,6 +34,11 @@ def inject_customer_nav():
     return {"customer_nav": CUSTOMER_NAV}
 
 
+@customer_bp.get("/access")
+def access():
+    return redirect(url_for("auth.login", next=url_for("customer.search")))
+
+
 def _stock_summary(frame: pd.DataFrame) -> dict[str, int]:
     if frame.empty:
         return {"total": 0, "sale": 0, "rent": 0, "districts": 0}

@@ -3,10 +3,10 @@
 This project is ready to be deployed as **one Flask app** with **one MySQL database**.
 
 You do **not** need two separate deployments.
-After deployment, share two direct entry links:
+After deployment, share two login-first entry links:
 
-- customer entry: `https://YOUR-DOMAIN/customer/search`
-- admin entry: `https://YOUR-DOMAIN/admin/overview`
+- customer entry: `https://YOUR-DOMAIN/customer/access`
+- admin entry: `https://YOUR-DOMAIN/admin/access`
 
 Both routes use the same backend and database.
 
@@ -123,9 +123,9 @@ Official reference:
 Once deployed, you can share:
 
 - customer route:
-  - `https://YOUR-RAILWAY-DOMAIN/customer/search`
+  - `https://YOUR-RAILWAY-DOMAIN/customer/access`
 - admin route:
-  - `https://YOUR-RAILWAY-DOMAIN/admin/overview`
+  - `https://YOUR-RAILWAY-DOMAIN/admin/access`
 
 ## Health Check
 
@@ -151,7 +151,7 @@ python app.py
 
 Then share:
 
-- `http://YOUR-PC-IP:5000/customer/search`
-- `http://YOUR-PC-IP:5000/admin/overview`
+- `http://YOUR-PC-IP:5000/customer/access`
+- `http://YOUR-PC-IP:5000/admin/access`
 
 This only works while your machine is on and reachable on the same network.

@@ -54,6 +54,17 @@ class FlaskWebTests(unittest.TestCase):
         response = self.client.get("/customer/search")
         self.assertEqual(response.status_code, 302)
         self.assertIn("/login", response.headers.get("Location", ""))
+        self.assertIn("next=/customer/search", response.headers.get("Location", ""))
+
+    def test_customer_access_route_redirects_to_login_first(self) -> None:
+        response = self.client.get("/customer/access", follow_redirects=False)
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/login?next=/customer/search", response.headers.get("Location", ""))
+
+    def test_admin_access_route_redirects_to_login_first(self) -> None:
+        response = self.client.get("/admin/access", follow_redirects=False)
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/login?next=/admin/overview", response.headers.get("Location", ""))
 
     def test_customer_stock_route_with_session(self) -> None:
         self._login_customer_session()

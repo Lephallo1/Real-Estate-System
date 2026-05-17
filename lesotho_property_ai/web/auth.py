@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from functools import wraps
 from typing import Callable
+from urllib.parse import urlsplit
 
 from flask import Blueprint, flash, g, redirect, render_template, request, session, url_for
 
@@ -13,12 +14,29 @@ from lesotho_property_ai.db import DatabaseConfigError, resolve_database_setting
 auth_bp = Blueprint("auth", __name__)
 
 
+def _safe_next_target(raw_target: str | None) -> str | None:
+    if not raw_target:
+        return None
+    target = raw_target.strip()
+    if not target or not target.startswith("/") or target.startswith("//"):
+        return None
+    parsed = urlsplit(target)
+    if parsed.scheme or parsed.netloc:
+        return None
+    return target
+
+
+def _login_redirect_target() -> str:
+    next_target = request.full_path.rstrip("?") if request.query_string else request.path
+    return url_for("auth.login", next=next_target)
+
+
 def login_required(view: Callable):
     @wraps(view)
     def wrapped_view(**kwargs):
         if not session.get("authenticated"):
             flash("Please sign in first.", "warning")
-            return redirect(url_for("auth.login"))
+            return redirect(_login_redirect_target())
         g.current_role = session.get("role")
         return view(**kwargs)
 
@@ -31,7 +49,7 @@ def role_required(role: str):
         def wrapped_view(**kwargs):
             if not session.get("authenticated"):
                 flash("Please sign in first.", "warning")
-                return redirect(url_for("auth.login"))
+                return redirect(_login_redirect_target())
             if session.get("role") != role:
                 flash("You do not have access to that page.", "danger")
                 if session.get("role") == "admin":
@@ -56,6 +74,7 @@ def _setup_status() -> tuple[bool, str]:
 @auth_bp.route("/login", methods=["GET", "POST"])
 def login():
     setup_ok, setup_message = _setup_status()
+    next_target = _safe_next_target(request.values.get("next"))
     if request.method == "POST" and setup_ok:
         identifier = request.form.get("email", "").strip()
         password = request.form.get("password", "")
@@ -80,6 +99,8 @@ def login():
                 }
             )
             flash("Signed in successfully.", "success")
+            if next_target:
+                return redirect(next_target)
             if result.user.role == "admin":
                 return redirect(url_for("admin.overview"))
             return redirect(url_for("customer.search"))
@@ -90,6 +111,7 @@ def login():
         page_title="Secure Access",
         setup_ok=setup_ok,
         setup_message=setup_message,
+        next_target=next_target,
     )
 
 

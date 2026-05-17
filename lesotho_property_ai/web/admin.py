@@ -47,6 +47,11 @@ ADMIN_ACTIONS = {
 }
 
 
+@admin_bp.get("/access")
+def access():
+    return redirect(url_for("auth.login", next=url_for("admin.overview")))
+
+
 def _numeric(value: object, default: float = 0.0) -> float:
     try:
         return float(value)

@@ -15,6 +15,7 @@
     <h3>Sign in</h3>
 
     <form method="post" class="auth-form">
+      {% if next_target %}<input type="hidden" name="next" value="{{ next_target }}">{% endif %}
       <label>Email address</label>
       <input type="email" name="email" value="{{ request.args.get('email', '') }}" placeholder="admin@lesothohome.ai or your email address" required>
 
