@@ -17,7 +17,7 @@
     <form method="post" class="auth-form">
       {% if next_target %}<input type="hidden" name="next" value="{{ next_target }}">{% endif %}
       <label>Email address</label>
-      <input type="email" name="email" value="{{ request.args.get('email', '') }}" placeholder="admin@lesothohome.ai or your email address" required>
+      <input type="email" name="email" value="{{ request.args.get('email', '') }}" placeholder="Enter your email" required>
 
       <label>Password</label>
       <input type="password" name="password" placeholder="Enter your password" required>
