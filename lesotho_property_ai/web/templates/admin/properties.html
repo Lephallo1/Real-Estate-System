@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="hero-panel">
+  <div>
+    <div class="eyebrow">Prepared inventory</div>
+    <p class="hero-copy">Browse, filter, and inspect the available stock visually. This page is the admin-facing property hub and keeps the stock sample hidden until you open it.</p>
+  </div>
+  <div class="action-strip">
+    <form method="post" action="{{ url_for('admin.run_action', action_key='scraper') }}">
+      <button type="submit" class="primary-btn small">Scrape New</button>
+    </form>
+  </div>
+</section>
+
+<section class="stats-grid">
+  <article class="stat-card"><div class="stat-label">Visible Results</div><div class="stat-value">{{ total_count }}</div></article>
+  <article class="stat-card"><div class="stat-label">Prepared Stock</div><div class="stat-value">{{ total_stock }}</div></article>
+  <article class="stat-card"><div class="stat-label">Districts</div><div class="stat-value">{{ district_total }}</div></article>
+  <article class="stat-card"><div class="stat-label">Filter Mode</div><div class="stat-value">All</div></article>
+</section>
+
+<div class="chip-row">
+  {% for chip in chips %}
+    <a class="chip {% if chip.active %}active{% endif %}" href="{{ chip.href }}">{{ chip.label }}</a>
+  {% endfor %}
+</div>
+
+<section class="property-grid">
+  {% for property in cards %}
+    {% set detail_href = none %}
+    {% include "partials/property_card.html" %}
+  {% endfor %}
+</section>
+
+<details class="accordion">
+  <summary>Open stock sample</summary>
+  <div class="accordion-body">
+    {% set table = {"columns": sample_columns, "rows": sample_rows} %}
+    {% include "partials/table.html" %}
+  </div>
+</details>
+{% endblock %}

@@ -1,0 +1,59 @@
+{
+  "sources_requested": [
+    "creativeproperties",
+    "propmarket",
+    "sotholand",
+    "lesothohousing",
+    "mestech",
+    "mosoholdings"
+  ],
+  "per_source_limit": 500,
+  "max_images_per_property": 5,
+  "include_rentals": true,
+  "raw_records": 369,
+  "clean_records": 346,
+  "raw_source_counts": {
+    "propmarket": 233,
+    "mosoholdings": 68,
+    "lesothohousing": 35,
+    "creativeproperties": 14,
+    "sotholand": 13,
+    "mestech": 6
+  },
+  "clean_source_counts": {
+    "propmarket": 211,
+    "mosoholdings": 68,
+    "lesothohousing": 35,
+    "creativeproperties": 14,
+    "sotholand": 12,
+    "mestech": 6
+  },
+  "raw_property_type_counts": {
+    "House": 209,
+    "Site": 100,
+    "Townhouse": 23,
+    "Commercial": 19,
+    "Apartment": 17,
+    "Cottage": 1
+  },
+  "clean_property_type_counts": {
+    "House": 197,
+    "Site": 89,
+    "Townhouse": 23,
+    "Commercial": 19,
+    "Apartment": 17,
+    "Cottage": 1
+  },
+  "raw_listing_intent_counts": {
+    "sale": 222,
+    "rent": 120,
+    "other": 27
+  },
+  "clean_listing_intent_counts": {
+    "sale": 202,
+    "rent": 117,
+    "other": 27
+  },
+  "raw_image_total": 1162,
+  "clean_image_total": 1081
+}

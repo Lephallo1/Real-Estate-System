@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="hero-panel">
+  <div>
+    <div class="eyebrow">Web scraping engine</div>
+    <p class="hero-copy">Focus on the scraping evaluation first, then open the supporting source and sample views only when needed. The live scraper action remains available from this page.</p>
+  </div>
+  <div class="action-strip">
+    <form method="post" action="{{ url_for('admin.run_action', action_key='scraper') }}">
+      <button type="submit" class="primary-btn small">Run Scraping Job</button>
+    </form>
+  </div>
+</section>
+
+<section class="stats-grid">
+  {% for stat in summary_cards %}
+    <article class="stat-card">
+      <div class="stat-label">{{ stat.label }}</div>
+      <div class="stat-value">{{ stat.value }}</div>
+    </article>
+  {% endfor %}
+</section>
+
+<section class="panel-grid two-up">
+  <article class="panel-card">
+    <div class="panel-head"><h2>Scraping evaluation</h2></div>
+    <div class="key-value-stack">
+      <div><span>Sources requested</span><strong>{{ sources_requested|join(', ') }}</strong></div>
+      <div><span>Property type classes</span><strong>{{ property_type_rows|length }}</strong></div>
+      <div><span>Listing intent classes</span><strong>{{ listing_intent_rows|length }}</strong></div>
+    </div>
+  </article>
+  <article class="panel-card">
+    <div class="panel-head"><h2>Source coverage</h2></div>
+    {% set rows = source_bar_rows %}
+    {% include "partials/bar_rows.html" %}
+  </article>
+</section>
+
+<details class="accordion">
+  <summary>Show sources</summary>
+  <div class="accordion-body">
+    <div class="simple-table">
+      {% for row in source_rows %}
+        <div class="table-row">
+          <span>{{ row.label }}</span>
+          <strong>{{ row.value }}</strong>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary>Open property type summary</summary>
+  <div class="accordion-body">
+    <div class="simple-table">
+      {% for row in property_type_rows %}
+        <div class="table-row">
+          <span>{{ row.label }}</span>
+          <strong>{{ row.value }}</strong>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary>Open listing intent summary</summary>
+  <div class="accordion-body">
+    <div class="simple-table">
+      {% for row in listing_intent_rows %}
+        <div class="table-row">
+          <span>{{ row.label }}</span>
+          <strong>{{ row.value }}</strong>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary>Open scraping sample rows</summary>
+  <div class="accordion-body">
+    {% set table = sample %}
+    {% include "partials/table.html" %}
+  </div>
+</details>
+{% endblock %}

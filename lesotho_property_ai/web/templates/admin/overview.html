@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="hero-panel">
+  <div>
+    <div class="eyebrow">Admin overview</div>
+    <p class="hero-copy">This control center stays connected to the real multimodal system. Open the KPI modules below to inspect live inventory, AI confidence, district coverage, and assignment progress without flooding the page.</p>
+  </div>
+  <div class="action-strip">
+    <a class="secondary-btn" href="{{ url_for('admin.properties') }}">Open properties</a>
+    <a class="secondary-btn" href="{{ url_for('admin.smart_matching') }}">Open smart matching</a>
+  </div>
+</section>
+
+<section class="stats-grid">
+  {% for card in overview_cards %}
+    <article class="stat-card">
+      <div class="stat-label">{{ card.label }}</div>
+      <div class="stat-value">{{ card.value }}</div>
+    </article>
+  {% endfor %}
+</section>
+
+<section class="panel-grid two-up">
+  {% for card in overview_cards %}
+    <details class="accordion overview-disclosure">
+      <summary>{{ card.label }}</summary>
+      <div class="accordion-body">
+        <div class="panel-copy">{{ card.detail_title }}</div>
+        <div class="key-value-stack top-gap">
+          {% for row in card.detail_rows %}
+            <div><span>{{ row.label }}</span><strong>{{ row.value }}</strong></div>
+          {% endfor %}
+        </div>
+      </div>
+    </details>
+  {% endfor %}
+</section>
+
+<section class="panel-grid two-up">
+  <details class="accordion">
+    <summary>Open assignment progress</summary>
+    <div class="accordion-body">
+      <div class="status-list">
+        {% for item in assignment_progress %}
+          <div><strong>{{ item.module }}</strong><span>{{ item.summary }}</span></div>
+        {% endfor %}
+      </div>
+    </div>
+  </details>
+
+  <details class="accordion">
+    <summary>Open key checkpoints</summary>
+    <div class="accordion-body">
+      <div class="checkpoint-stack">
+        {% for checkpoint in checkpoints %}
+          <div class="checkpoint-row">
+            <span>{{ checkpoint.label }}</span>
+            <strong>{{ checkpoint.value }}</strong>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  </details>
+</section>
+
+<section class="panel-card">
+  <div class="panel-head">
+    <div>
+      <h2>Available stock snapshot</h2>
+      <p class="panel-copy">A compact preview of prepared listings. Use the Properties page for the full filterable gallery.</p>
+    </div>
+    <a class="secondary-btn" href="{{ url_for('admin.properties') }}">View all stock</a>
+  </div>
+  <div class="property-grid compact">
+    {% for property in stock_snapshot %}
+      {% set detail_href = none %}
+      {% include "partials/property_card.html" %}
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

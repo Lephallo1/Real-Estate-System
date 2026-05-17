@@ -1,0 +1,167 @@
+{
+  "mode": "torch_multitask_cnn",
+  "target_property_type": "House",
+  "tasks": {
+    "cnn_bedroom_class": {
+      "train": {
+        "image_accuracy": 0.739,
+        "property_accuracy": 0.815,
+        "rows": 368,
+        "labels": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5+"
+        ]
+      },
+      "val": {
+        "image_accuracy": 0.484,
+        "property_accuracy": 0.583,
+        "rows": 91,
+        "labels": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5+"
+        ]
+      },
+      "test": {
+        "image_accuracy": 0.395,
+        "property_accuracy": 0.417,
+        "rows": 81,
+        "labels": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5+"
+        ]
+      }
+    },
+    "environment": {
+      "train": {
+        "image_accuracy": 0.587,
+        "property_accuracy": 0.574,
+        "rows": 368,
+        "labels": [
+          "Garden",
+          "Hillside",
+          "Suburban",
+          "Urban"
+        ]
+      },
+      "val": {
+        "image_accuracy": 0.385,
+        "property_accuracy": 0.417,
+        "rows": 91,
+        "labels": [
+          "Garden",
+          "Hillside",
+          "Suburban",
+          "Urban"
+        ]
+      },
+      "test": {
+        "image_accuracy": 0.395,
+        "property_accuracy": 0.417,
+        "rows": 81,
+        "labels": [
+          "Garden",
+          "Hillside",
+          "Suburban",
+          "Urban"
+        ]
+      }
+    },
+    "style": {
+      "train": {
+        "image_accuracy": 0.723,
+        "property_accuracy": 0.824,
+        "rows": 368,
+        "labels": [
+          "Family",
+          "Modern",
+          "Traditional"
+        ]
+      },
+      "val": {
+        "image_accuracy": 0.659,
+        "property_accuracy": 0.833,
+        "rows": 91,
+        "labels": [
+          "Family",
+          "Modern",
+          "Traditional"
+        ]
+      },
+      "test": {
+        "image_accuracy": 0.691,
+        "property_accuracy": 0.833,
+        "rows": 81,
+        "labels": [
+          "Family",
+          "Modern",
+          "Traditional"
+        ]
+      }
+    },
+    "condition": {
+      "train": {
+        "image_accuracy": 0.861,
+        "property_accuracy": 0.954,
+        "rows": 368,
+        "labels": [
+          "Good",
+          "New"
+        ]
+      },
+      "val": {
+        "image_accuracy": 0.692,
+        "property_accuracy": 0.833,
+        "rows": 91,
+        "labels": [
+          "Good",
+          "New"
+        ]
+      },
+      "test": {
+        "image_accuracy": 0.753,
+        "property_accuracy": 0.833,
+        "rows": 81,
+        "labels": [
+          "Good",
+          "New"
+        ]
+      }
+    }
+  },
+  "rows": 540,
+  "epochs": 4,
+  "weights": "pretrained",
+  "best_epoch": 4,
+  "selection_metric": 0.6508,
+  "history": [
+    {
+      "epoch": 1,
+      "train_loss": 4.6386,
+      "val_selection_score": 0.2579
+    },
+    {
+      "epoch": 2,
+      "train_loss": 2.9031,
+      "val_selection_score": 0.3472
+    },
+    {
+      "epoch": 3,
+      "train_loss": 2.4824,
+      "val_selection_score": 0.4603
+    },
+    {
+      "epoch": 4,
+      "train_loss": 1.9494,
+      "val_selection_score": 0.6508
+    }
+  ]
+}

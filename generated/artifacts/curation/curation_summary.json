@@ -1,0 +1,57 @@
+{
+  "rows": 346,
+  "country_counts": {
+    "Lesotho": 342,
+    "South Africa": 4
+  },
+  "use_bucket_counts": {
+    "residential": 217,
+    "site_land": 86,
+    "commercial": 43
+  },
+  "district_resolution_counts": {
+    "text_match": 275,
+    "locality_match": 59,
+    "source_default": 5,
+    "outside_lesotho": 4,
+    "unresolved": 3
+  },
+  "residential_curated_rows": 213,
+  "cnn_candidate_rows": 213,
+  "cnn_property_type_counts": {
+    "House": 177,
+    "Townhouse": 21,
+    "Apartment": 15
+  },
+  "cnn_bedroom_class_counts": {
+    "2": 87,
+    "3": 77,
+    "4": 26,
+    "1": 15,
+    "5+": 8
+  },
+  "source_counts": {
+    "propmarket": 211,
+    "mosoholdings": 68,
+    "lesothohousing": 35,
+    "creativeproperties": 14,
+    "sotholand": 12,
+    "mestech": 6
+  },
+  "image_total": 1081,
+  "residential_rows": 217,
+  "commercial_rows": 43,
+  "site_land_rows": 86,
+  "outside_lesotho_rows": 4,
+  "cnn_image_rows": 697,
+  "artifact_paths": {
+    "curated_master_csv": "generated\\artifacts\\curation\\properties_curated_master.csv",
+    "residential_csv": "generated\\artifacts\\curation\\properties_residential_curated.csv",
+    "commercial_csv": "generated\\artifacts\\curation\\properties_commercial_curated.csv",
+    "site_land_csv": "generated\\artifacts\\curation\\properties_site_land_curated.csv",
+    "outside_lesotho_csv": "generated\\artifacts\\curation\\properties_outside_lesotho.csv",
+    "cnn_candidates_csv": "generated\\artifacts\\curation\\properties_residential_cnn_candidates.csv",
+    "cnn_excluded_csv": "generated\\artifacts\\curation\\properties_residential_cnn_excluded.csv",
+    "cnn_images_csv": "generated\\artifacts\\curation\\properties_residential_cnn_images.csv"
+  }
+}

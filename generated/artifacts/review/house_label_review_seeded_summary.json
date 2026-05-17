@@ -1,0 +1,17 @@
+{
+  "rows": 177,
+  "action_counts": {
+    "manual_second_pass_overrides": 5,
+    "excluded_obvious_noise": 21,
+    "bedroom_label_updates": 2
+  },
+  "review_status_counts": {
+    "pending": 149,
+    "exclude": 21,
+    "reviewed": 7
+  },
+  "approved_for_training_counts": {
+    "yes": 156,
+    "no": 21
+  }
+}

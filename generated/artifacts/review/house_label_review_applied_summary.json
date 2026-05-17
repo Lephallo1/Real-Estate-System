@@ -1,0 +1,17 @@
+{
+  "rows": 177,
+  "included_training_rows": 156,
+  "excluded_training_rows": 21,
+  "image_rows": 540,
+  "modified_counts": {
+    "bedroom_class_updates": 2,
+    "style_updates": 0,
+    "environment_updates": 1,
+    "condition_updates": 0
+  },
+  "review_status_counts": {
+    "pending": 149,
+    "exclude": 21,
+    "reviewed": 7
+  }
+}

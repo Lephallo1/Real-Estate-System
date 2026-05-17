@@ -1,0 +1,17 @@
+{% if rows %}
+  <div class="bar-list">
+    {% for row in rows %}
+      <div class="bar-row">
+        <div class="bar-row-head">
+          <span>{{ row.label }}</span>
+          <strong>{{ row.value }}</strong>
+        </div>
+        <div class="bar-track">
+          <div class="bar-fill" style="width: {{ row.percent }}%"></div>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <p>No distribution data is available yet.</p>
+{% endif %}

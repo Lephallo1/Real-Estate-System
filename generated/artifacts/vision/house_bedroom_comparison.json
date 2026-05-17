@@ -1,0 +1,48 @@
+{
+  "baseline_source": "house_vision_predictions.csv",
+  "improved_source": "house_bedroom_predictions.csv",
+  "note": "The baseline is the original multi-task bedroom head remapped into the same grouped bedroom labels used by the improved model.",
+  "splits": [
+    {
+      "split": "train",
+      "before_model": "main_house_multitask",
+      "before_label_scheme": "exact_labels_remapped_to_groups",
+      "before_image_accuracy": 0.764,
+      "before_property_accuracy": 0.824,
+      "after_model": "dedicated_house_bedroom",
+      "after_label_scheme": "coarse_groups_1-2_3_4+",
+      "after_image_accuracy": 0.688,
+      "after_property_accuracy": 0.731,
+      "image_accuracy_gain": -0.076,
+      "property_accuracy_gain": -0.093
+    },
+    {
+      "split": "val",
+      "before_model": "main_house_multitask",
+      "before_label_scheme": "exact_labels_remapped_to_groups",
+      "before_image_accuracy": 0.516,
+      "before_property_accuracy": 0.5,
+      "after_model": "dedicated_house_bedroom",
+      "after_label_scheme": "coarse_groups_1-2_3_4+",
+      "after_image_accuracy": 0.495,
+      "after_property_accuracy": 0.667,
+      "image_accuracy_gain": -0.021,
+      "property_accuracy_gain": 0.167
+    },
+    {
+      "split": "test",
+      "before_model": "main_house_multitask",
+      "before_label_scheme": "exact_labels_remapped_to_groups",
+      "before_image_accuracy": 0.444,
+      "before_property_accuracy": 0.5,
+      "after_model": "dedicated_house_bedroom",
+      "after_label_scheme": "coarse_groups_1-2_3_4+",
+      "after_image_accuracy": 0.358,
+      "after_property_accuracy": 0.333,
+      "image_accuracy_gain": -0.086,
+      "property_accuracy_gain": -0.167
+    }
+  ],
+  "main_model_exact_test_property_accuracy": 0.417,
+  "improved_grouped_test_property_accuracy": 0.333
+}

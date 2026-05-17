@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="hero-panel">
+  <div>
+    <div class="eyebrow">System settings</div>
+    <p class="hero-copy">Configuration remains backend-driven, but this page surfaces the current app status, database connection context, and the main training/runtime summaries in one place.</p>
+  </div>
+</section>
+
+<section class="panel-grid two-up">
+  <article class="panel-card">
+    <div class="panel-head"><h2>System settings</h2></div>
+    <div class="key-value-stack">
+      {% for key, value in app_summary.items() %}
+        <div><span>{{ key }}</span><strong>{{ value }}</strong></div>
+      {% endfor %}
+    </div>
+  </article>
+  <article class="panel-card">
+    <div class="panel-head"><h2>Database status</h2></div>
+    <div class="key-value-stack">
+      <div><span>Configured</span><strong>{{ "Yes" if setup_ok else "No" }}</strong></div>
+      {% for key, value in db_summary.items() %}
+        <div><span>{{ key }}</span><strong>{{ value }}</strong></div>
+      {% endfor %}
+    </div>
+  </article>
+</section>
+
+<section class="panel-card">
+  <div class="panel-head"><h2>Session controls</h2></div>
+  <p class="panel-copy">Logout is moved here so the sidebar stays focused on navigation, like the prototype dashboards you referenced.</p>
+  <form method="post" action="{{ url_for('auth.logout') }}">
+    <button type="submit" class="danger-btn">Log Out</button>
+  </form>
+</section>
+{% endblock %}

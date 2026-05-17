@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block content %}
+{% set recommendation = metrics.get('recommendation', {}) %}
+<section class="hero-panel">
+  <div>
+    <div class="eyebrow">Recommended homes</div>
+    <p class="hero-copy">These matches were generated from your chosen districts, budget, bedroom count, language, and free-text preferences. Open “Why This Match” on any card for the deeper reasoning.</p>
+  </div>
+  <div class="action-strip">
+    <a class="secondary-btn" href="{{ url_for('customer.search') }}">Refine search</a>
+    <a class="secondary-btn" href="{{ url_for('customer.stock') }}">Browse stock</a>
+  </div>
+</section>
+
+<section class="stats-grid">
+  <article class="stat-card"><div class="stat-label">Properties Considered</div><div class="stat-value">{{ recommendation.get('properties_considered', 0) }}</div></article>
+  <article class="stat-card"><div class="stat-label">Top Match Score</div><div class="stat-value">{{ recommendation.get('mean_top_match_score', 0.0) }}</div></article>
+  <article class="stat-card"><div class="stat-label">Matches Returned</div><div class="stat-value">{{ recommendation.get('matches_generated', 0) }}</div></article>
+  <article class="stat-card"><div class="stat-label">Campaign Messages</div><div class="stat-value">{{ recommendation.get('campaigns_generated', 0) }}</div></article>
+</section>
+
+<section class="panel-grid two-up">
+  <article class="panel-card">
+    <div class="panel-head"><h2>Fusion summary</h2></div>
+    <div class="key-value-stack">
+      <div><span>Mean component scores</span><strong>{{ fusion.get('mean_component_scores', {}) }}</strong></div>
+      <div><span>Mean weights used</span><strong>{{ fusion.get('mean_weights_used', {}) }}</strong></div>
+      <div><span>Fusion reliability</span><strong>{{ fusion.get('mean_fusion_reliability', 0.0) }}</strong></div>
+    </div>
+  </article>
+  <article class="panel-card">
+    <div class="panel-head"><h2>Search summary</h2></div>
+    <div class="key-value-stack">
+      <div><span>Listing intent</span><strong>{{ search_summary.get('listing_intent', 'sale') }}</strong></div>
+      <div><span>Language</span><strong>{{ search_summary.get('preferred_language', 'en') }}</strong></div>
+      <div><span>Preferred districts</span><strong>{{ search_summary.get('preferred_districts', [])|join(', ') }}</strong></div>
+      <div><span>Bedrooms</span><strong>{{ search_summary.get('preferred_bedrooms', 3) }}</strong></div>
+    </div>
+  </article>
+</section>
+
+<section class="panel-card customer-summary-panel">
+  <div class="panel-head"><h2>Marketing summary</h2></div>
+  <div class="key-value-stack">
+    <div><span>Channel counts</span><strong>{{ marketing.get('channel_counts', {}) }}</strong></div>
+    <div><span>Language counts</span><strong>{{ marketing.get('language_counts', {}) }}</strong></div>
+    <div><span>Mean engagement</span><strong>{{ marketing.get('mean_estimated_engagement_score', 0.0) }}</strong></div>
+  </div>
+</section>
+
+<section class="property-grid">
+  {% for card in cards %}
+    {% set property = card.property %}
+    {% set detail_href = url_for('customer.property_detail', property_id=card.property_id) %}
+    {% include "partials/property_card.html" %}
+  {% endfor %}
+</section>
+{% endblock %}

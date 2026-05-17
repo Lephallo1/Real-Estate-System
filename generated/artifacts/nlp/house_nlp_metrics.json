@@ -1,0 +1,42 @@
+{
+  "vocabulary_size": 927,
+  "avg_property_keyword_count": 10.0,
+  "query_success_rate": 1.0,
+  "query_cases": [
+    {
+      "query_name": "English family query",
+      "expected_district": "Maseru",
+      "top_property_id": "creative-new-housing-development-now-selling_under-construction",
+      "top_district": "Maseru",
+      "top_score": 0.403,
+      "success": true
+    },
+    {
+      "query_name": "Sesotho family query",
+      "expected_district": "Maseru",
+      "top_property_id": "propmarket-SiDHc0YvePC_fzWHiFisO",
+      "top_district": "Maseru",
+      "top_score": 0.2991,
+      "success": true
+    },
+    {
+      "query_name": "Berea garden query",
+      "expected_district": "Berea",
+      "top_property_id": "propmarket-k8AX2jh1R695RF-5UBAIV",
+      "top_district": "Berea",
+      "top_score": 0.5811,
+      "success": true
+    }
+  ],
+  "english_top_property_id": "creative-new-housing-development-now-selling_under-construction",
+  "english_top_district": "Maseru",
+  "sesotho_top_property_id": "propmarket-SiDHc0YvePC_fzWHiFisO",
+  "sesotho_top_district": "Maseru",
+  "english_query_matches_maseru": true,
+  "sesotho_query_matches_maseru": true,
+  "properties_evaluated": 116,
+  "queries_evaluated": 4,
+  "listing_intent": "sale",
+  "top_n": 3,
+  "input_csv": "generated\\artifacts\\review\\properties_house_reviewed.csv"
+}

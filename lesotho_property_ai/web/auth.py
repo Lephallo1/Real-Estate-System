@@ -1,0 +1,132 @@
+"""Authentication routes and role guards for the Flask frontend."""
+
+from __future__ import annotations
+
+from functools import wraps
+from typing import Callable
+
+from flask import Blueprint, flash, g, redirect, render_template, request, session, url_for
+
+from lesotho_property_ai.auth_service import authenticate_user, register_customer_user
+from lesotho_property_ai.db import DatabaseConfigError, resolve_database_settings
+
+auth_bp = Blueprint("auth", __name__)
+
+
+def login_required(view: Callable):
+    @wraps(view)
+    def wrapped_view(**kwargs):
+        if not session.get("authenticated"):
+            flash("Please sign in first.", "warning")
+            return redirect(url_for("auth.login"))
+        g.current_role = session.get("role")
+        return view(**kwargs)
+
+    return wrapped_view
+
+
+def role_required(role: str):
+    def decorator(view: Callable):
+        @wraps(view)
+        def wrapped_view(**kwargs):
+            if not session.get("authenticated"):
+                flash("Please sign in first.", "warning")
+                return redirect(url_for("auth.login"))
+            if session.get("role") != role:
+                flash("You do not have access to that page.", "danger")
+                if session.get("role") == "admin":
+                    return redirect(url_for("admin.overview"))
+                return redirect(url_for("customer.search"))
+            g.current_role = role
+            return view(**kwargs)
+
+        return wrapped_view
+
+    return decorator
+
+
+def _setup_status() -> tuple[bool, str]:
+    try:
+        resolve_database_settings()
+        return True, ""
+    except Exception as exc:  # pragma: no cover - defensive branch for missing config
+        return False, str(exc)
+
+
+@auth_bp.route("/login", methods=["GET", "POST"])
+def login():
+    setup_ok, setup_message = _setup_status()
+    if request.method == "POST" and setup_ok:
+        identifier = request.form.get("email", "").strip()
+        password = request.form.get("password", "")
+        result = authenticate_user(
+            username=identifier,
+            password=password,
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get("User-Agent"),
+        )
+        if result.success and result.user:
+            session.clear()
+            session.update(
+                {
+                    "authenticated": True,
+                    "user_id": result.user.user_id,
+                    "username": result.user.username,
+                    "email": result.user.email,
+                    "full_name": result.user.full_name,
+                    "role": result.user.role,
+                    "customer_has_results": False,
+                    "last_recommendation_prefix": "house_user_input",
+                }
+            )
+            flash("Signed in successfully.", "success")
+            if result.user.role == "admin":
+                return redirect(url_for("admin.overview"))
+            return redirect(url_for("customer.search"))
+        flash(result.message, "danger")
+
+    return render_template(
+        "auth/login.html",
+        page_title="Secure Access",
+        setup_ok=setup_ok,
+        setup_message=setup_message,
+    )
+
+
+@auth_bp.route("/register", methods=["GET", "POST"])
+def register():
+    setup_ok, setup_message = _setup_status()
+    if request.method == "POST" and setup_ok:
+        full_name = request.form.get("full_name", "")
+        email = request.form.get("email", "")
+        address = request.form.get("address", "")
+        password = request.form.get("password", "")
+        confirm_password = request.form.get("confirm_password", "")
+
+        if password != confirm_password:
+            flash("Passwords do not match.", "danger")
+        else:
+            result = register_customer_user(
+                full_name=full_name,
+                email=email,
+                address=address,
+                password=password,
+            )
+            if result.success:
+                flash("Account created successfully. Please sign in.", "success")
+                return redirect(url_for("auth.login", email=email.strip().lower()))
+            flash(result.message, "danger")
+
+    return render_template(
+        "auth/register.html",
+        page_title="Create Customer Account",
+        setup_ok=setup_ok,
+        setup_message=setup_message,
+    )
+
+
+@auth_bp.post("/logout")
+def logout():
+    session.clear()
+    flash("You have been signed out.", "info")
+    return redirect(url_for("auth.login"))

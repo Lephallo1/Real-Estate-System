@@ -1,0 +1,65 @@
+{
+  "mode": "torch_multitask_cnn",
+  "target_property_type": "all_residential_types",
+  "tasks": {
+    "cnn_property_type": {
+      "train": {
+        "image_accuracy": 0.759,
+        "property_accuracy": 0.796,
+        "rows": 461,
+        "labels": [
+          "Apartment",
+          "House",
+          "Townhouse"
+        ]
+      },
+      "val": {
+        "image_accuracy": 0.6,
+        "property_accuracy": 0.595,
+        "rows": 125,
+        "labels": [
+          "Apartment",
+          "House",
+          "Townhouse"
+        ]
+      },
+      "test": {
+        "image_accuracy": 0.613,
+        "property_accuracy": 0.588,
+        "rows": 111,
+        "labels": [
+          "Apartment",
+          "House",
+          "Townhouse"
+        ]
+      }
+    }
+  },
+  "rows": 697,
+  "epochs": 4,
+  "weights": "pretrained",
+  "best_epoch": 4,
+  "selection_metric": 0.5946,
+  "history": [
+    {
+      "epoch": 1,
+      "train_loss": 0.3755,
+      "val_selection_score": 0.1081
+    },
+    {
+      "epoch": 2,
+      "train_loss": 0.0877,
+      "val_selection_score": 0.0811
+    },
+    {
+      "epoch": 3,
+      "train_loss": 0.0534,
+      "val_selection_score": 0.5405
+    },
+    {
+      "epoch": 4,
+      "train_loss": 0.062,
+      "val_selection_score": 0.5946
+    }
+  ]
+}

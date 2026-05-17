@@ -1,0 +1,4 @@
+split,before_model,before_label_scheme,before_image_accuracy,before_property_accuracy,after_model,after_label_scheme,after_image_accuracy,after_property_accuracy,image_accuracy_gain,property_accuracy_gain
+train,main_house_multitask,exact_labels_remapped_to_groups,0.764,0.824,dedicated_house_bedroom,coarse_groups_1-2_3_4+,0.688,0.731,-0.076,-0.093
+val,main_house_multitask,exact_labels_remapped_to_groups,0.516,0.5,dedicated_house_bedroom,coarse_groups_1-2_3_4+,0.495,0.667,-0.021,0.167
+test,main_house_multitask,exact_labels_remapped_to_groups,0.444,0.5,dedicated_house_bedroom,coarse_groups_1-2_3_4+,0.358,0.333,-0.086,-0.167

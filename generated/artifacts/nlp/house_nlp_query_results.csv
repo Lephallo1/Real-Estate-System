@@ -1,0 +1,13 @@
+query_id,query_name,property_id,property_title,district,price,text_score,cosine,keyword_overlap,signal_alignment,shared_keywords,rank
+NLP-QUERY-001,English Family Query,propmarket-SiDHc0YvePC_fzWHiFisO,"3 Bedrooms, House",Maseru,814000,0.3155,0.2463,0.4,0.4,"[""bedroom_3"", ""district_maseru"", ""house"", ""maseru""]",1
+NLP-QUERY-001,English Family Query,propmarket-_7r_OHVPYyShfQ4a1C5iR,"3 Bedrooms, House",Maseru,1650000,0.3078,0.2324,0.4,0.4,"[""bedroom_3"", ""district_maseru"", ""house"", ""maseru""]",2
+NLP-QUERY-001,English Family Query,propmarket-TAauZyw_XaAMTcDGOCVox,"3 Bedrooms, House",Maseru,2200000,0.3069,0.2307,0.4,0.4,"[""bedroom_3"", ""district_maseru"", ""house"", ""maseru""]",3
+NLP-QUERY-002,Sesotho Family Query,propmarket-SiDHc0YvePC_fzWHiFisO,"3 Bedrooms, House",Maseru,814000,0.2991,0.2165,0.4,0.4,"[""bedroom_3"", ""district_maseru"", ""house"", ""maseru""]",1
+NLP-QUERY-002,Sesotho Family Query,propmarket-_7r_OHVPYyShfQ4a1C5iR,"3 Bedrooms, House",Maseru,1650000,0.2923,0.2042,0.4,0.4,"[""bedroom_3"", ""district_maseru"", ""house"", ""maseru""]",2
+NLP-QUERY-002,Sesotho Family Query,propmarket-TAauZyw_XaAMTcDGOCVox,"3 Bedrooms, House",Maseru,2200000,0.2915,0.2028,0.4,0.4,"[""bedroom_3"", ""district_maseru"", ""house"", ""maseru""]",3
+NLP-QUERY-003,Berea Garden Query,propmarket-k8AX2jh1R695RF-5UBAIV,"2 Bedrooms, House",Berea,220000,0.5811,0.6222,0.5714,0.48,"[""bedroom_2"", ""berea"", ""district_berea"", ""house""]",1
+NLP-QUERY-003,Berea Garden Query,propmarket-YeJOdv1same7Be9Pfqx6y,"2 Bedrooms, House",Berea,600000,0.5401,0.5477,0.5714,0.48,"[""bedroom_2"", ""berea"", ""district_berea"", ""house""]",2
+NLP-QUERY-003,Berea Garden Query,propmarket-C9lcWgLNZxWHPX7Wj8iGv,"2 Bedrooms, House",Berea,550000,0.5272,0.5242,0.5714,0.48,"[""bedroom_2"", ""berea"", ""district_berea"", ""house""]",3
+NLP-QUERY-004,Modern View Query,propmarket-Y05g7baITID25N3SEnYbU,"4 Bedrooms, House",Berea,550000,0.2847,0.1904,0.4,0.4,"[""bedroom_4"", ""berea"", ""district_berea"", ""house""]",1
+NLP-QUERY-004,Modern View Query,creative-new-housing-development-now-selling_under-construction,New Housing Development Now Selling_Under Construction,Maseru,1700000,0.2803,0.1823,0.4,0.4,"[""district_maseru"", ""house"", ""maseru"", ""modern""]",2
+NLP-QUERY-004,Modern View Query,propmarket-j7OKpdwoVzgjB5YPW6h7t,"4 Bedrooms, House",Maseru,2000000,0.2395,0.1082,0.4,0.4,"[""bedroom_4"", ""district_maseru"", ""house"", ""maseru""]",3

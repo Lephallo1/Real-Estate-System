@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="hero-panel">
+  <div>
+    <div class="eyebrow">Computer vision dashboard</div>
+    <p class="hero-copy">Track the saved PyTorch evaluation openly, then use the image analysis demo below to test newly uploaded property images and pass the results into NLP Studio.</p>
+  </div>
+  <div class="action-strip">
+    <form method="post" action="{{ url_for('admin.run_action', action_key='vision') }}">
+      <button type="submit" class="secondary-btn">Train Vision Models</button>
+    </form>
+  </div>
+</section>
+
+<section class="stats-grid">
+  {% for stat in summary_metrics %}
+    <article class="stat-card">
+      <div class="stat-label">{{ stat.label }}</div>
+      <div class="stat-value">{{ stat.value }}</div>
+    </article>
+  {% endfor %}
+</section>
+
+<section class="panel-grid two-up">
+  <article class="panel-card">
+    <div class="panel-head"><h2>CNN image analyzer</h2></div>
+    <form method="post" enctype="multipart/form-data" class="upload-form">
+      <label class="upload-dropzone">
+        <span>Drop property images here or choose files</span>
+        <input type="file" name="property_images" accept="image/*" multiple required>
+      </label>
+      <button type="submit" class="primary-btn">Analyse with CNN</button>
+    </form>
+  </article>
+
+  <article class="panel-card">
+    <div class="panel-head"><h2>AI detection results</h2></div>
+    {% if vision_demo %}
+      <div class="vision-preview">
+        {% if vision_demo.image_relpaths %}
+          <img src="{{ url_for('media_image', relpath=vision_demo.image_relpaths[0]) }}" alt="Uploaded property preview">
+        {% endif %}
+      </div>
+      <div class="key-value-stack">
+        <div><span>Predicted bedrooms</span><strong>{{ vision_demo.predicted_bedrooms }}</strong></div>
+        <div><span>Property type</span><strong>{{ vision_demo.predicted_property_type }}</strong></div>
+        <div><span>Condition</span><strong>{{ vision_demo.predicted_condition }}</strong></div>
+        <div><span>Style</span><strong>{{ vision_demo.predicted_style }}</strong></div>
+        <div><span>Environment</span><strong>{{ vision_demo.predicted_environment }}</strong></div>
+        <div><span>Confidence</span><strong>{{ vision_demo.confidence }}</strong></div>
+      </div>
+      <div class="property-actions top-gap">
+        <a class="primary-btn small" href="{{ url_for('admin.nlp_studio', prefill='vision') }}">Send to NLP Studio</a>
+      </div>
+    {% else %}
+      <p class="panel-copy">Upload one or more property images to run the demo analyzer and reveal the predicted property attributes here.</p>
+    {% endif %}
+  </article>
+</section>
+
+<details class="accordion" open>
+  <summary>Open main model metrics</summary>
+  <div class="accordion-body">
+    {% set table = {"columns": ["task", "split", "image_accuracy", "property_accuracy"], "rows": task_rows} %}
+    {% include "partials/table.html" %}
+  </div>
+</details>
+
+<details class="accordion">
+  <summary>Open main model prediction sample</summary>
+  <div class="accordion-body">
+    {% set table = prediction_sample %}
+    {% include "partials/table.html" %}
+  </div>
+</details>
+
+<details class="accordion">
+  <summary>Open grouped bedroom support model</summary>
+  <div class="accordion-body">
+    <div class="key-value-stack">
+      <div><span>Improvement note</span><strong>{{ bedroom_improvement.note }}</strong></div>
+      <div><span>Main model exact test accuracy</span><strong>{{ bedroom_improvement.main_model_exact_test_property_accuracy }}</strong></div>
+      <div><span>Grouped bedroom test accuracy</span><strong>{{ bedroom_improvement.improved_grouped_test_property_accuracy }}</strong></div>
+    </div>
+    {% set table = bedroom_sample %}
+    {% include "partials/table.html" %}
+  </div>
+</details>
+
+<details class="accordion">
+  <summary>Open bedroom movement analysis</summary>
+  <div class="accordion-body">
+    {% set table = bedroom_comparison %}
+    {% include "partials/table.html" %}
+  </div>
+</details>
+
+<details class="accordion">
+  <summary>Open residential property-type classifier</summary>
+  <div class="accordion-body">
+    {% set table = property_type_sample %}
+    {% include "partials/table.html" %}
+  </div>
+</details>
+{% endblock %}

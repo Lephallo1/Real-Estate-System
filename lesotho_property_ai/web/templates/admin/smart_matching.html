@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block content %}
+{% set recommendation = metrics.get('recommendation', {}) %}
+<section class="hero-panel">
+  <div>
+    <div class="eyebrow">Smart matching dashboard</div>
+    <p class="hero-copy">Select a buyer profile and inspect the strongest property match, the multimodal reasons behind it, and the linked campaign output. This is the lecturer-facing recommendation workflow.</p>
+  </div>
+</section>
+
+<section class="stats-grid">
+  <article class="stat-card"><div class="stat-label">Properties Considered</div><div class="stat-value">{{ recommendation.get('properties_considered', 0) }}</div></article>
+  <article class="stat-card"><div class="stat-label">Client Profiles</div><div class="stat-value">{{ recommendation.get('clients_profiled', 0) }}</div></article>
+  <article class="stat-card"><div class="stat-label">Matches Generated</div><div class="stat-value">{{ recommendation.get('matches_generated', 0) }}</div></article>
+  <article class="stat-card"><div class="stat-label">Fusion Reliability</div><div class="stat-value">{{ fusion.get('mean_fusion_reliability', 0.0) }}</div></article>
+</section>
+
+<div class="chip-row">
+  {% for client_name in client_names %}
+    <a class="chip {% if client_name == selected_client %}active{% endif %}" href="{{ url_for('admin.smart_matching', client=client_name) }}">{{ client_name }}</a>
+  {% endfor %}
+</div>
+
+{% if top_card %}
+  <section class="panel-grid two-up">
+    <article class="panel-card">
+      <div class="panel-head">
+        <div>
+          <h2>{{ selected_client }}</h2>
+          <p class="panel-copy">Best property match from the current recommendation run.</p>
+        </div>
+        <a class="secondary-btn" href="{{ url_for('admin.campaigns', client=selected_client) }}">Open campaign preview</a>
+      </div>
+      {% set property = top_card.property %}
+      {% set detail_href = none %}
+      {% include "partials/property_card.html" %}
+    </article>
+
+    <article class="panel-card">
+      <div class="panel-head"><h2>Why it matched</h2></div>
+      <div class="score-grid">
+        <div><span>Overall</span><strong>{{ top_card.overall_score }}</strong></div>
+        <div><span>Structured</span><strong>{{ top_card.structured_score }}</strong></div>
+        <div><span>Text</span><strong>{{ top_card.text_score }}</strong></div>
+        <div><span>Vision</span><strong>{{ top_card.vision_score }}</strong></div>
+      </div>
+      <p class="panel-copy"><strong>Recommendation reasons:</strong> {{ top_card.reasons|join(', ') }}</p>
+      <p class="panel-copy"><strong>Matched cues:</strong> {{ top_card.cues|join(', ') }}</p>
+
+      {% if selected_campaigns %}
+        <div class="message-card">
+          <div class="message-label">Generated marketing preview</div>
+          <p>{{ selected_campaigns[0]["message"] }}</p>
+        </div>
+      {% endif %}
+    </article>
+  </section>
+{% else %}
+  <section class="panel-card">
+    <p class="panel-copy">No smart matching output is available yet. Refresh the recommendation run from the quick actions first.</p>
+  </section>
+{% endif %}
+
+<details class="accordion">
+  <summary>Open alternative top matches</summary>
+  <div class="accordion-body">
+    <div class="property-grid compact">
+      {% for card in alternative_cards %}
+        {% set property = card.property %}
+        {% set detail_href = none %}
+        {% include "partials/property_card.html" %}
+      {% endfor %}
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary>Open component level scoring details</summary>
+  <div class="accordion-body">
+    {% set table = match_table %}
+    {% include "partials/table.html" %}
+  </div>
+</details>
+{% endblock %}

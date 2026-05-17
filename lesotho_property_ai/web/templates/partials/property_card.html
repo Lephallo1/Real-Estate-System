@@ -1,0 +1,50 @@
+<article class="property-card">
+  <div class="property-media">
+    {% if property.image_url %}
+      <img src="{{ property.image_url }}" alt="{{ property.title }}">
+    {% else %}
+      <div class="property-placeholder">No image</div>
+    {% endif %}
+    <div class="property-badges">
+      {% for badge in property.badges %}
+        <span class="pill pill-{{ badge.tone }}">{{ badge.label }}</span>
+      {% endfor %}
+    </div>
+    {% if property.ai_score %}
+      <div class="ai-pill">AI {{ property.ai_score|int }}%</div>
+    {% endif %}
+  </div>
+  <div class="property-body">
+    <div class="property-price">{{ property.price }}</div>
+    <h3>{{ property.title }}</h3>
+    <div class="property-location">{{ property.locality or property.district }}</div>
+    {% if property.source %}
+      <div class="property-source">{{ property.source }}</div>
+    {% endif %}
+    {% if property.description %}
+      <p class="property-copy">{{ property.description }}</p>
+    {% endif %}
+    <div class="property-meta">
+      <span>{{ property.bedrooms }} beds</span>
+      <span>{{ property.bathrooms }} baths</span>
+      {% if property.floor_area %}
+        <span>{{ property.floor_area }} m&sup2;</span>
+      {% endif %}
+    </div>
+    {% if property.amenities %}
+      <div class="property-tags">
+        {% for amenity in property.amenities %}
+          <span class="mini-tag">{{ amenity }}</span>
+        {% endfor %}
+      </div>
+    {% endif %}
+    <div class="property-actions">
+      {% if property.listing_url %}
+        <a class="link-btn" href="{{ property.listing_url }}" target="_blank" rel="noreferrer">Open source</a>
+      {% endif %}
+      {% if detail_href %}
+        <a class="primary-btn small" href="{{ detail_href }}">Why this match</a>
+      {% endif %}
+    </div>
+  </div>
+</article>

@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="auth-card-wrap">
+  <div class="auth-card">
+    <div class="auth-brand">
+      <div class="auth-brand-icon">&#127968;</div>
+      <div>
+        <h2>LesothoHomeAI</h2>
+        <p>Multimodal AI Real Estate Marketing System</p>
+      </div>
+    </div>
+
+    <div class="auth-caption">Secure Access</div>
+    <h3>Sign in</h3>
+
+    <form method="post" class="auth-form">
+      <label>Email address</label>
+      <input type="email" name="email" value="{{ request.args.get('email', '') }}" placeholder="admin@lesothohome.ai or your email address" required>
+
+      <label>Password</label>
+      <input type="password" name="password" placeholder="Enter your password" required>
+
+      <button type="submit" class="primary-btn full">SIGN IN SECURELY</button>
+    </form>
+
+    <div class="auth-secondary">
+      <p>Do not have an account?</p>
+      <a class="secondary-btn full" href="{{ url_for('auth.register') }}">Register here</a>
+    </div>
+
+    {% if not setup_ok %}
+      <details class="accordion">
+        <summary>MySQL setup help</summary>
+        <div class="accordion-body">
+          <p>Database login is not configured yet.</p>
+          <code>{{ setup_message }}</code>
+        </div>
+      </details>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

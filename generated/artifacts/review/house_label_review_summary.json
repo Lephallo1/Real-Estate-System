@@ -1,0 +1,27 @@
+{
+  "rows": 177,
+  "review_priority_counts": {
+    "low": 99,
+    "medium": 50,
+    "high": 28
+  },
+  "flag_counts": {
+    "price_low_for_sale": 4,
+    "environment_mismatch:Suburban->Urban": 2,
+    "possible_development": 1,
+    "price_high_for_rent": 2,
+    "low_image_count": 51,
+    "possible_commercial_mix": 8,
+    "possible_multi_unit": 12,
+    "style_mismatch:Traditional->Modern": 6,
+    "style_mismatch:Family->Modern": 1,
+    "environment_mismatch:Hillside->Urban": 1,
+    "bedroom_mismatch:2->3": 1,
+    "environment_mismatch:Garden->Suburban": 1,
+    "environment_mismatch:Urban->Suburban": 1,
+    "bedroom_mismatch:2->1": 1,
+    "environment_mismatch:Hillside->Suburban": 1,
+    "style_mismatch:Traditional->Contemporary": 2
+  },
+  "target_property_type": "House"
+}

@@ -1,0 +1,83 @@
+{
+  "raw_report": {
+    "sources": {
+      "creativeproperties": {
+        "records": 0,
+        "listing_page": "https://creativeproperties.co.ls/property-list-lesotho/",
+        "error": "HTTPSConnectionPool(host='creativeproperties.co.ls', port=443): Max retries exceeded with url: /property-list-lesotho/ (Caused by NameResolutionError(\"HTTPSConnection(host='creativeproperties.co.ls', port=443): Failed to resolve 'creativeproperties.co.ls' ([Errno 11001] getaddrinfo failed)\"))"
+      },
+      "propmarket": {
+        "records": 0,
+        "listing_page": "https://www.propmarket.co.ls/sitemap.xml",
+        "error": "HTTPSConnectionPool(host='www.propmarket.co.ls', port=443): Max retries exceeded with url: /sitemap.xml (Caused by NameResolutionError(\"HTTPSConnection(host='www.propmarket.co.ls', port=443): Failed to resolve 'www.propmarket.co.ls' ([Errno 11001] getaddrinfo failed)\"))"
+      },
+      "sotholand": {
+        "records": 0,
+        "listing_page": "https://sotholandproperties.co.ls/properties",
+        "error": "HTTPSConnectionPool(host='sotholandproperties.co.ls', port=443): Max retries exceeded with url: /properties (Caused by NameResolutionError(\"HTTPSConnection(host='sotholandproperties.co.ls', port=443): Failed to resolve 'sotholandproperties.co.ls' ([Errno 11001] getaddrinfo failed)\"))"
+      },
+      "lesothohousing": {
+        "records": 0,
+        "listing_page": "https://lesothohousing.org.ls/wp-sitemap-posts-property-1.xml",
+        "error": "HTTPSConnectionPool(host='lesothohousing.org.ls', port=443): Max retries exceeded with url: /wp-sitemap-posts-property-1.xml (Caused by NameResolutionError(\"HTTPSConnection(host='lesothohousing.org.ls', port=443): Failed to resolve 'lesothohousing.org.ls' ([Errno 11001] getaddrinfo failed)\"))"
+      },
+      "mestech": {
+        "records": 0,
+        "listing_page": "https://www.mestech.co.ls/properties/",
+        "error": "HTTPSConnectionPool(host='www.mestech.co.ls', port=443): Max retries exceeded with url: /properties/ (Caused by NameResolutionError(\"HTTPSConnection(host='www.mestech.co.ls', port=443): Failed to resolve 'www.mestech.co.ls' ([Errno 11001] getaddrinfo failed)\"))"
+      },
+      "mosoholdings": {
+        "records": 0,
+        "listing_page": "https://mosoholdings.co.ls/listings-search/",
+        "error": "HTTPSConnectionPool(host='mosoholdings.co.ls', port=443): Max retries exceeded with url: /listings-search/ (Caused by NameResolutionError(\"HTTPSConnection(host='mosoholdings.co.ls', port=443): Failed to resolve 'mosoholdings.co.ls' ([Errno 11001] getaddrinfo failed)\"))"
+      }
+    },
+    "total_records": 0
+  },
+  "clean_report": {
+    "sources": {
+      "creativeproperties": {
+        "records": 0,
+        "listing_page": "https://creativeproperties.co.ls/property-list-lesotho/",
+        "error": "HTTPSConnectionPool(host='creativeproperties.co.ls', port=443): Max retries exceeded with url: /property-list-lesotho/ (Caused by NameResolutionError(\"HTTPSConnection(host='creativeproperties.co.ls', port=443): Failed to resolve 'creativeproperties.co.ls' ([Errno 11001] getaddrinfo failed)\"))"
+      },
+      "propmarket": {
+        "records": 0,
+        "listing_page": "https://www.propmarket.co.ls/sitemap.xml",
+        "error": "HTTPSConnectionPool(host='www.propmarket.co.ls', port=443): Max retries exceeded with url: /sitemap.xml (Caused by NameResolutionError(\"HTTPSConnection(host='www.propmarket.co.ls', port=443): Failed to resolve 'www.propmarket.co.ls' ([Errno 11001] getaddrinfo failed)\"))"
+      },
+      "sotholand": {
+        "records": 0,
+        "listing_page": "https://sotholandproperties.co.ls/properties",
+        "error": "HTTPSConnectionPool(host='sotholandproperties.co.ls', port=443): Max retries exceeded with url: /properties (Caused by NameResolutionError(\"HTTPSConnection(host='sotholandproperties.co.ls', port=443): Failed to resolve 'sotholandproperties.co.ls' ([Errno 11001] getaddrinfo failed)\"))"
+      },
+      "lesothohousing": {
+        "records": 0,
+        "listing_page": "https://lesothohousing.org.ls/wp-sitemap-posts-property-1.xml",
+        "error": "HTTPSConnectionPool(host='lesothohousing.org.ls', port=443): Max retries exceeded with url: /wp-sitemap-posts-property-1.xml (Caused by NameResolutionError(\"HTTPSConnection(host='lesothohousing.org.ls', port=443): Failed to resolve 'lesothohousing.org.ls' ([Errno 11001] getaddrinfo failed)\"))"
+      },
+      "mestech": {
+        "records": 0,
+        "listing_page": "https://www.mestech.co.ls/properties/",
+        "error": "HTTPSConnectionPool(host='www.mestech.co.ls', port=443): Max retries exceeded with url: /properties/ (Caused by NameResolutionError(\"HTTPSConnection(host='www.mestech.co.ls', port=443): Failed to resolve 'www.mestech.co.ls' ([Errno 11001] getaddrinfo failed)\"))"
+      },
+      "mosoholdings": {
+        "records": 0,
+        "listing_page": "https://mosoholdings.co.ls/listings-search/",
+        "error": "HTTPSConnectionPool(host='mosoholdings.co.ls', port=443): Max retries exceeded with url: /listings-search/ (Caused by NameResolutionError(\"HTTPSConnection(host='mosoholdings.co.ls', port=443): Failed to resolve 'mosoholdings.co.ls' ([Errno 11001] getaddrinfo failed)\"))"
+      }
+    },
+    "total_records": 0
+  },
+  "sources": [
+    "creativeproperties",
+    "propmarket",
+    "sotholand",
+    "lesothohousing",
+    "mestech",
+    "mosoholdings"
+  ],
+  "live_limit": 10,
+  "include_rentals": true,
+  "max_images": 3
+}

@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="hero-panel">
+  <div>
+    <div class="eyebrow">Search by your needs</div>
+    <p class="hero-copy">Start here with your budget, districts, bedrooms, and written preferences. The system uses those needs first, then builds the recommendation list from the prepared house inventory.</p>
+  </div>
+  <div class="action-strip">
+    <a class="secondary-btn" href="{{ url_for('customer.stock') }}">Browse available stock</a>
+  </div>
+</section>
+
+<section class="stats-grid">
+  <article class="stat-card"><div class="stat-label">Prepared Homes</div><div class="stat-value">{{ stock_counts.total }}</div></article>
+  <article class="stat-card"><div class="stat-label">For Sale</div><div class="stat-value">{{ stock_counts.sale }}</div></article>
+  <article class="stat-card"><div class="stat-label">For Rent</div><div class="stat-value">{{ stock_counts.rent }}</div></article>
+  <article class="stat-card"><div class="stat-label">Districts</div><div class="stat-value">{{ stock_counts.districts }}</div></article>
+</section>
+
+<section class="panel-card search-panel">
+  <div class="panel-head"><h2>Home finder form</h2></div>
+  <form method="post" class="search-form-grid">
+    <div class="form-group">
+      <label>Looking to</label>
+      <select name="listing_intent">
+        <option value="sale" {% if search_defaults.get('listing_intent', 'sale') == 'sale' %}selected{% endif %}>For Sale</option>
+        <option value="rent" {% if search_defaults.get('listing_intent') == 'rent' %}selected{% endif %}>For Rent</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Preferred language</label>
+      <select name="preferred_language">
+        <option value="en" {% if search_defaults.get('preferred_language', 'en') == 'en' %}selected{% endif %}>English</option>
+        <option value="st" {% if search_defaults.get('preferred_language') == 'st' %}selected{% endif %}>Sesotho</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Minimum budget (LSL)</label>
+      <input type="number" name="budget_min" value="{{ search_defaults.get('budget_min', 300000) }}">
+    </div>
+    <div class="form-group">
+      <label>Maximum budget (LSL)</label>
+      <input type="number" name="budget_max" value="{{ search_defaults.get('budget_max', 2500000) }}">
+    </div>
+    <div class="form-group">
+      <label>Bedrooms</label>
+      <select name="preferred_bedrooms">
+        {% for beds in [1,2,3,4,5] %}
+          <option value="{{ beds }}" {% if search_defaults.get('preferred_bedrooms', 3)|int == beds %}selected{% endif %}>{{ beds }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Recommendations to return</label>
+      <select name="top_n">
+        {% for size in [1,2,3,4,5] %}
+          <option value="{{ size }}" {% if search_defaults.get('top_n', 3)|int == size %}selected{% endif %}>{{ size }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="form-group full">
+      <label>Preferred districts</label>
+      <div class="district-picks">
+        {% set selected_districts = search_defaults.get('preferred_districts', ['Maseru']) %}
+        {% for district in district_options %}
+          <label class="district-chip">
+            <input type="checkbox" name="preferred_districts" value="{{ district }}" {% if district in selected_districts %}checked{% endif %}>
+            <span>{{ district }}</span>
+          </label>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="form-group full">
+      <label>English preference text</label>
+      <textarea name="preference_en">{{ search_defaults.get('preference_en', 'Looking for a family house with secure parking, good condition, and access to schools.') }}</textarea>
+    </div>
+    <div class="form-group full">
+      <label>Sesotho preference text</label>
+      <textarea name="preference_st">{{ search_defaults.get('preference_st', 'Ke batla ntlo ya lelapa e nang le parking e sireletsehileng le boemo bo botle.') }}</textarea>
+    </div>
+
+    <div class="form-group full">
+      <button type="submit" class="primary-btn">Find matching homes</button>
+    </div>
+  </form>
+</section>
+{% endblock %}

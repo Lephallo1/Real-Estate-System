@@ -1,0 +1,19 @@
+{
+  "mean_component_scores": {
+    "structured": 0.9583,
+    "text": 0.3076,
+    "vision": 0.895,
+    "overall": 0.7448
+  },
+  "mean_weights_used": {
+    "structured": 0.4847,
+    "text": 0.3085,
+    "vision": 0.2068
+  },
+  "mean_fusion_reliability": 0.9361,
+  "top_reason_counts": {
+    "bedroom layout is a strong fit": 1,
+    "image analysis suggests good condition": 1,
+    "it matches the preferred district": 1
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "campaigns_generated": 1,
+  "channel_counts": {
+    "dashboard": 1
+  },
+  "language_counts": {
+    "en": 1
+  },
+  "variant_counts": {
+    "dashboard_demo_followup": 1
+  },
+  "mean_match_score": 0.7599,
+  "mean_estimated_engagement_score": 0.8599
+}

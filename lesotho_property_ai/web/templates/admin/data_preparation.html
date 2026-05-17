@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="hero-panel">
+  <div>
+    <div class="eyebrow">Cleaning and curation</div>
+    <p class="hero-copy">This stage keeps the dashboard short on purpose: summaries first, then expandable samples for curated residential rows, CNN candidates, review notes, and excluded examples.</p>
+  </div>
+</section>
+
+<section class="stats-grid">
+  {% for stat in summary_cards %}
+    <article class="stat-card">
+      <div class="stat-label">{{ stat.label }}</div>
+      <div class="stat-value">{{ stat.value }}</div>
+    </article>
+  {% endfor %}
+</section>
+
+<section class="panel-grid two-up">
+  <article class="panel-card">
+    <div class="panel-head"><h2>Cleaning summary</h2></div>
+    <p class="panel-copy">The modeling path remains house-focused, while the broader residential archive is preserved for traceability and future extension.</p>
+    <div class="simple-table top-gap">
+      {% for row in use_bucket_rows %}
+        <div class="table-row">
+          <span>{{ row.label }}</span>
+          <strong>{{ row.value }}</strong>
+        </div>
+      {% endfor %}
+    </div>
+  </article>
+  <article class="panel-card">
+    <div class="panel-head"><h2>Label review status</h2></div>
+    <div class="key-value-stack">
+      <div><span>High priority</span><strong>{{ label_review_summary.high_priority }}</strong></div>
+      <div><span>Medium priority</span><strong>{{ label_review_summary.medium_priority }}</strong></div>
+      <div><span>Reviewed rows</span><strong>{{ label_review_summary.reviewed_rows }}</strong></div>
+      <div><span>Excluded rows</span><strong>{{ label_review_summary.excluded_rows }}</strong></div>
+    </div>
+  </article>
+</section>
+
+{% for label, sample in [('Curated residential sample', residential_sample), ('CNN candidate sample', candidates_sample), ('Label review sample', review_sample), ('Excluded sample rows', excluded_sample)] %}
+  <details class="accordion">
+    <summary>{{ label }}</summary>
+    <div class="accordion-body">
+      {% set table = sample %}
+      {% include "partials/table.html" %}
+    </div>
+  </details>
+{% endfor %}
+{% endblock %}

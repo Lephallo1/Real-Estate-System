@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ page_title or "LesothoHomeAI" }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+</head>
+<body class="{% if current_user.authenticated %}app-shell{% else %}auth-shell{% endif %}">
+  {% if current_user.authenticated %}
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <div class="brand-icon">&#127968;</div>
+        <div>
+          <div class="brand-title">LesothoHomeAI</div>
+          <div class="brand-sub">{{ "AI Control Center" if current_user.role == "admin" else "Home Search Portal" }}</div>
+        </div>
+      </div>
+
+      {% for group in sidebar_groups %}
+        <div class="nav-group">
+          <div class="nav-group-label">{{ group.label }}</div>
+          <div class="nav-list">
+            {% for item in group["items"] %}
+              <a class="nav-item {% if request.endpoint == item.endpoint %}active{% endif %}" href="{{ url_for(item.endpoint) }}">
+                <span class="nav-item-main">
+                  {% if item.icon %}
+                    <span class="nav-item-icon">{{ item.icon }}</span>
+                  {% endif %}
+                  <span>{{ item.label }}</span>
+                </span>
+                {% if item.badge is defined and item.badge %}
+                  <span class="nav-badge">{{ item.badge }}</span>
+                {% endif %}
+              </a>
+            {% endfor %}
+          </div>
+        </div>
+      {% endfor %}
+
+      <div class="sidebar-footer">
+        <div class="user-card">
+          <div class="user-avatar">{{ (current_user.full_name or "U")[0] }}</div>
+          <div>
+            <div class="user-name">{{ current_user.full_name }}</div>
+            <div class="user-role">{{ current_user.role|title }}</div>
+          </div>
+        </div>
+        <div class="user-email">{{ current_user.email }}</div>
+      </div>
+    </aside>
+  {% endif %}
+
+  <div class="page-shell">
+    {% if current_user.authenticated %}
+      <header class="topbar">
+        <div>
+          <div class="crumbs">{{ current_user.role|title }} / {{ sidebar_title or page_title }}</div>
+          <h1>{{ page_title }}</h1>
+        </div>
+        <div class="topbar-badge">{{ "AI CONTROL" if current_user.role == "admin" else "SMART SEARCH" }}</div>
+      </header>
+    {% endif %}
+
+    <main class="{% if current_user.authenticated %}page-content{% else %}auth-page{% endif %}">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <div class="flash-stack">
+            {% for category, message in messages %}
+              <div class="flash flash-{{ category }}">{{ message }}</div>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+
+  <script>
+    document.querySelectorAll('[data-tab-group]').forEach(function(group) {
+      const buttons = group.querySelectorAll('[data-tab-target]');
+      const panes = document.querySelectorAll('[data-tab-pane="' + group.dataset.tabGroup + '"]');
+      buttons.forEach(function(button) {
+        button.addEventListener('click', function() {
+          buttons.forEach(function(node) { node.classList.remove('active'); });
+          panes.forEach(function(pane) { pane.classList.remove('active'); });
+          button.classList.add('active');
+          const target = document.getElementById(button.dataset.tabTarget);
+          if (target) {
+            target.classList.add('active');
+          }
+        });
+      });
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="hero-panel">
+  <div>
+    <div class="eyebrow">NLP listing studio</div>
+    <p class="hero-copy">Test bilingual marketing copy generation directly. You can type in English or Sesotho, choose the tone, and optionally open this page from Vision with a prefilled property analysis.</p>
+  </div>
+  {% if vision_prefill %}
+    <div class="topbar-badge">PREFILLED FROM VISION</div>
+  {% endif %}
+</section>
+
+<section class="panel-grid two-up">
+  <article class="panel-card">
+    <div class="panel-head"><h2>Property inputs</h2></div>
+    <form method="post" class="search-form-grid">
+      <div class="form-group">
+        <label>Recipient / client name</label>
+        <input type="text" name="full_name" value="{{ defaults.full_name }}">
+      </div>
+      <div class="form-group">
+        <label>Property title</label>
+        <input type="text" name="title" value="{{ defaults.title }}">
+      </div>
+      <div class="form-group">
+        <label>District</label>
+        <input type="text" name="district" value="{{ defaults.district }}">
+      </div>
+      <div class="form-group">
+        <label>Locality</label>
+        <input type="text" name="locality" value="{{ defaults.locality }}">
+      </div>
+      <div class="form-group">
+        <label>Price (LSL)</label>
+        <input type="number" name="price" value="{{ defaults.price }}">
+      </div>
+      <div class="form-group">
+        <label>Bedrooms</label>
+        <input type="number" name="bedrooms" value="{{ defaults.bedrooms }}">
+      </div>
+      <div class="form-group">
+        <label>Property type</label>
+        <input type="text" name="property_type" value="{{ defaults.property_type }}">
+      </div>
+      <div class="form-group">
+        <label>Condition</label>
+        <input type="text" name="condition" value="{{ defaults.condition }}">
+      </div>
+      <div class="form-group">
+        <label>Environment</label>
+        <input type="text" name="environment" value="{{ defaults.environment }}">
+      </div>
+      <div class="form-group">
+        <label>Amenities</label>
+        <input type="text" name="amenities" value="{{ defaults.amenities }}">
+      </div>
+      <div class="form-group">
+        <label>Language</label>
+        <select name="language">
+          <option value="en" {% if defaults.language == 'en' %}selected{% endif %}>English</option>
+          <option value="st" {% if defaults.language == 'st' %}selected{% endif %}>Sesotho</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Tone</label>
+        <select name="tone">
+          <option value="professional" {% if defaults.tone == 'professional' %}selected{% endif %}>Professional</option>
+          <option value="warm" {% if defaults.tone == 'warm' %}selected{% endif %}>Warm</option>
+          <option value="urgent" {% if defaults.tone == 'urgent' %}selected{% endif %}>Urgent</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Channel</label>
+        <select name="channel">
+          <option value="email" {% if defaults.channel == 'email' %}selected{% endif %}>Email</option>
+          <option value="social" {% if defaults.channel == 'social' %}selected{% endif %}>Social</option>
+          <option value="dashboard" {% if defaults.channel == 'dashboard' %}selected{% endif %}>Dashboard</option>
+        </select>
+      </div>
+      <div class="form-group full">
+        <label>English preference</label>
+        <textarea name="preference_en">{{ defaults.preference_en }}</textarea>
+      </div>
+      <div class="form-group full">
+        <label>Sesotho preference</label>
+        <textarea name="preference_st">{{ defaults.preference_st }}</textarea>
+      </div>
+      <div class="form-group full">
+        <button type="submit" class="primary-btn">Generate marketing text</button>
+      </div>
+    </form>
+  </article>
+
+  <article class="panel-card">
+    <div class="panel-head"><h2>AI-generated output</h2></div>
+    {% if nlp_result %}
+      <div class="message-card compact">
+        <div class="message-label">Subject line</div>
+        <p>{{ nlp_result.subject_line }}</p>
+      </div>
+      <div class="message-card compact">
+        <div class="message-label">Preview text</div>
+        <p>{{ nlp_result.preview_text }}</p>
+      </div>
+      <div class="message-card">
+        <div class="message-label">Generated message</div>
+        <p>{{ nlp_result.message }}</p>
+      </div>
+      <div class="score-grid top-gap">
+        <div><span>Tone classification</span><strong>{{ nlp_result.tone_summary.label }}</strong></div>
+        <div><span>Sentiment score</span><strong>{{ nlp_result.tone_summary.score }}</strong></div>
+        <div><span>Positive cues</span><strong>{{ nlp_result.tone_summary.positive_hits }}</strong></div>
+        <div><span>Urgency cues</span><strong>{{ nlp_result.tone_summary.urgency_hits }}</strong></div>
+      </div>
+      <div class="message-card compact">
+        <div class="message-label">Call to action</div>
+        <p>{{ nlp_result.call_to_action }}</p>
+      </div>
+    {% else %}
+      <p class="panel-copy">Generate the marketing text to see the bilingual output, sentiment-style classification, subject line, preview text, and call to action here.</p>
+    {% endif %}
+  </article>
+</section>
+
+<section class="stats-grid">
+  <article class="stat-card"><div class="stat-label">Vocabulary Size</div><div class="stat-value">{{ nlp_metrics.get('vocabulary_size', 0) }}</div></article>
+  <article class="stat-card"><div class="stat-label">Query Success Rate</div><div class="stat-value">{{ nlp_metrics.get('query_success_rate', 0.0) }}</div></article>
+  <article class="stat-card"><div class="stat-label">Properties Evaluated</div><div class="stat-value">{{ nlp_metrics.get('properties_evaluated', 0) }}</div></article>
+  <article class="stat-card"><div class="stat-label">Queries Evaluated</div><div class="stat-value">{{ nlp_metrics.get('queries_evaluated', 0) }}</div></article>
+</section>
+
+<details class="accordion">
+  <summary>Open NLP evaluation summary</summary>
+  <div class="accordion-body">
+    <div class="key-value-stack">
+      {% for key, value in nlp_metrics.items() %}
+        <div><span>{{ key }}</span><strong>{{ value }}</strong></div>
+      {% endfor %}
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary>Open bilingual query checks</summary>
+  <div class="accordion-body">
+    {% set table = nlp_queries %}
+    {% include "partials/table.html" %}
+  </div>
+</details>
+{% endblock %}

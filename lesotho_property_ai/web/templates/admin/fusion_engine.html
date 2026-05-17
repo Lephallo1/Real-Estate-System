@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="hero-panel">
+  <div>
+    <div class="eyebrow">Task 4 renamed</div>
+    <p class="hero-copy">Fusion Engine is the explainability layer for multimodal scoring. It shows how structured rules, NLP signals, and vision signals are rebalanced before the final recommendation score is produced.</p>
+  </div>
+</section>
+
+<section class="stats-grid">
+  {% for stat in stats %}
+    <article class="stat-card">
+      <div class="stat-label">{{ stat.label }}</div>
+      <div class="stat-value">{{ stat.value }}</div>
+    </article>
+  {% endfor %}
+</section>
+
+<section class="panel-grid two-up">
+  <article class="panel-card">
+    <div class="panel-head"><h2>Fusion summary</h2></div>
+    <div class="key-value-stack">
+      <div><span>Mean weights used</span><strong>{{ fusion.get('mean_weights_used', {}) }}</strong></div>
+      <div><span>Mean component scores</span><strong>{{ fusion.get('mean_component_scores', {}) }}</strong></div>
+      <div><span>Mean reliability</span><strong>{{ fusion.get('mean_fusion_reliability', 0.0) }}</strong></div>
+    </div>
+  </article>
+  <article class="panel-card">
+    <div class="panel-head"><h2>Recommendation summary</h2></div>
+    <div class="key-value-stack">
+      {% for key, value in recommendation.items() %}
+        <div><span>{{ key }}</span><strong>{{ value }}</strong></div>
+      {% endfor %}
+    </div>
+  </article>
+</section>
+
+<details class="accordion">
+  <summary>Open top recommendation reasons</summary>
+  <div class="accordion-body">
+    <div class="simple-table">
+      {% for key, value in fusion.get('top_reason_counts', {}).items() %}
+        <div class="table-row">
+          <span>{{ key }}</span>
+          <strong>{{ value }}</strong>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary>Open match component sample</summary>
+  <div class="accordion-body">
+    {% set table = match_sample %}
+    {% include "partials/table.html" %}
+  </div>
+</details>
+{% endblock %}

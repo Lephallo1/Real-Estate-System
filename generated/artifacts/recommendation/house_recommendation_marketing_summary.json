@@ -1,0 +1,17 @@
+{
+  "campaigns_generated": 6,
+  "channel_counts": {
+    "email": 4,
+    "social": 2
+  },
+  "language_counts": {
+    "en": 3,
+    "st": 3
+  },
+  "variant_counts": {
+    "email_property_spotlight": 4,
+    "social_property_spotlight": 2
+  },
+  "mean_match_score": 0.723,
+  "mean_estimated_engagement_score": 0.8463
+}

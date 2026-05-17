@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="hero-panel">
+  <div>
+    <div class="eyebrow">Available inventory</div>
+    <p class="hero-copy">Browse the prepared housing stock visually, then go back to Search when you want the AI system to rank the best homes for your specific needs.</p>
+  </div>
+</section>
+
+<section class="stats-grid">
+  <article class="stat-card"><div class="stat-label">Prepared Homes</div><div class="stat-value">{{ stock_counts.total }}</div></article>
+  <article class="stat-card"><div class="stat-label">For Sale</div><div class="stat-value">{{ stock_counts.sale }}</div></article>
+  <article class="stat-card"><div class="stat-label">For Rent</div><div class="stat-value">{{ stock_counts.rent }}</div></article>
+  <article class="stat-card"><div class="stat-label">Filtered View</div><div class="stat-value">{{ total_count }}</div></article>
+</section>
+
+<div class="chip-row">
+  {% for chip in chips %}
+    <a class="chip {% if chip.active %}active{% endif %}" href="{{ chip.href }}">{{ chip.label }}</a>
+  {% endfor %}
+</div>
+
+<p class="section-note">Showing {{ total_count }} properties after filters.</p>
+
+<section class="property-grid">
+  {% for property in cards %}
+    {% set detail_href = none %}
+    {% include "partials/property_card.html" %}
+  {% endfor %}
+</section>
+
+<details class="accordion">
+  <summary>Open stock sample table</summary>
+  <div class="accordion-body">
+    {% set table = {"columns": sample_columns, "rows": sample_rows} %}
+    {% include "partials/table.html" %}
+  </div>
+</details>
+{% endblock %}

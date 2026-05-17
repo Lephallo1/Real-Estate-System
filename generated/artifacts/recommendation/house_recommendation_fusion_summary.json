@@ -1,0 +1,21 @@
+{
+  "mean_component_scores": {
+    "structured": 0.963,
+    "text": 0.2342,
+    "vision": 0.8742,
+    "overall": 0.7152
+  },
+  "mean_weights_used": {
+    "structured": 0.4797,
+    "text": 0.3152,
+    "vision": 0.2052
+  },
+  "mean_fusion_reliability": 0.944,
+  "top_reason_counts": {
+    "bedroom layout is a strong fit": 6,
+    "it matches the preferred district": 6,
+    "budget is closely aligned": 3,
+    "vision model supports the garden setting": 2,
+    "image analysis suggests good condition": 1
+  }
+}

@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+
+generated_test_runs/
+generated/logs/
+
+# Simulated scratch images can be regenerated and are not part of the real-only workflow.
+generated/images/LS-PROP-*/
+
+# Local frontend secrets
+.flask/*
+!.flask/
+!.flask/secrets.example.toml

@@ -1,0 +1,99 @@
+{
+  "vision": {
+    "mode": 2.0,
+    "property_type_accuracy": 0.588,
+    "condition_accuracy": 0.833,
+    "bedroom_mae": 0.527,
+    "bedroom_property_accuracy": 0.333,
+    "source": "saved_house_training_predictions_with_aux_property_type_and_bedroom",
+    "covered_properties": 93
+  },
+  "nlp": {
+    "vocabulary_size": 723,
+    "avg_property_keyword_count": 10.0,
+    "query_success_rate": 1.0,
+    "query_cases": [
+      {
+        "query_name": "English family query",
+        "expected_district": "Maseru",
+        "top_property_id": "propmarket-_7r_OHVPYyShfQ4a1C5iR",
+        "top_district": "Maseru",
+        "top_score": 0.315,
+        "success": true
+      },
+      {
+        "query_name": "Sesotho family query",
+        "expected_district": "Maseru",
+        "top_property_id": "propmarket-KMeb_ngqmeHEhth1Ue1eQ",
+        "top_district": "Maseru",
+        "top_score": 0.3439,
+        "success": true
+      },
+      {
+        "query_name": "Berea garden query",
+        "expected_district": "Berea",
+        "top_property_id": "propmarket-k8AX2jh1R695RF-5UBAIV",
+        "top_district": "Berea",
+        "top_score": 0.5765,
+        "success": true
+      }
+    ],
+    "english_top_property_id": "propmarket-_7r_OHVPYyShfQ4a1C5iR",
+    "english_top_district": "Maseru",
+    "sesotho_top_property_id": "propmarket-KMeb_ngqmeHEhth1Ue1eQ",
+    "sesotho_top_district": "Maseru",
+    "english_query_matches_maseru": true,
+    "sesotho_query_matches_maseru": true
+  },
+  "recommendation": {
+    "properties_considered": 93,
+    "clients_profiled": 1,
+    "matches_generated": 3,
+    "campaigns_generated": 1,
+    "top_n": 3,
+    "mean_top_match_score": 0.7599,
+    "listing_intent": "sale",
+    "strict_house_only": true,
+    "excluded_demo_noise_rows": 5,
+    "district_counts": {
+      "Maseru": 67,
+      "Berea": 20,
+      "Leribe": 2,
+      "Quthing": 2,
+      "Mohale's Hoek": 2
+    }
+  },
+  "fusion": {
+    "mean_component_scores": {
+      "structured": 0.9583,
+      "text": 0.3076,
+      "vision": 0.895,
+      "overall": 0.7448
+    },
+    "mean_weights_used": {
+      "structured": 0.4847,
+      "text": 0.3085,
+      "vision": 0.2068
+    },
+    "mean_fusion_reliability": 0.9361,
+    "top_reason_counts": {
+      "bedroom layout is a strong fit": 1,
+      "image analysis suggests good condition": 1,
+      "it matches the preferred district": 1
+    }
+  },
+  "marketing": {
+    "campaigns_generated": 1,
+    "channel_counts": {
+      "dashboard": 1
+    },
+    "language_counts": {
+      "en": 1
+    },
+    "variant_counts": {
+      "dashboard_demo_followup": 1
+    },
+    "mean_match_score": 0.7599,
+    "mean_estimated_engagement_score": 0.8599
+  }
+}
