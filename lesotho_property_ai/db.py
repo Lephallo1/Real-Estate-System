@@ -24,6 +24,7 @@ class DatabaseSettings:
     name: str
     user: str
     password: str
+    connect_timeout_seconds: int
 
 
 def _mapping_value(mapping: Mapping[str, Any] | None, key: str) -> str | None:
@@ -97,6 +98,12 @@ def resolve_database_settings(
 
     host = pick("DB_HOST", "MYSQLHOST")
     port_text = pick("DB_PORT", "MYSQLPORT", default="3306")
+    timeout_text = pick(
+        "DB_CONNECT_TIMEOUT",
+        "DB_CONNECTION_TIMEOUT",
+        "MYSQL_CONNECT_TIMEOUT",
+        default="5",
+    )
     name = pick("DB_NAME", "MYSQLDATABASE")
     user = pick("DB_USER", "MYSQLUSER")
     password = pick("DB_PASSWORD", "MYSQLPASSWORD")
@@ -118,6 +125,12 @@ def resolve_database_settings(
         port = int(port_text or "3306")
     except ValueError as exc:
         raise DatabaseConfigError("DB_PORT must be a valid integer.") from exc
+    try:
+        connect_timeout_seconds = int(timeout_text or "5")
+    except ValueError as exc:
+        raise DatabaseConfigError("DB_CONNECT_TIMEOUT must be a valid integer.") from exc
+    if connect_timeout_seconds < 1:
+        raise DatabaseConfigError("DB_CONNECT_TIMEOUT must be greater than 0.")
 
     return DatabaseSettings(
         host=str(host),
@@ -125,6 +138,7 @@ def resolve_database_settings(
         name=str(name),
         user=str(user),
         password=str(password),
+        connect_timeout_seconds=connect_timeout_seconds,
     )
 
 
@@ -149,6 +163,7 @@ def _open_connection(*, settings: DatabaseSettings, include_database: bool, mysq
         "user": settings.user,
         "password": settings.password,
         "autocommit": False,
+        "connection_timeout": settings.connect_timeout_seconds,
     }
     if include_database:
         connection_kwargs["database"] = settings.name

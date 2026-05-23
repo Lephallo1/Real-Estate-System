@@ -66,6 +66,9 @@ def create_app() -> Flask:
         except (DatabaseConfigError, DatabaseConnectionError) as exc:
             app.logger.warning("Database health check failed.", exc_info=True)
             return jsonify({"status": "error", "database": "unavailable", "detail": str(exc)}), 503
+        except Exception as exc:  # pragma: no cover - defensive fallback for connector/runtime surprises
+            app.logger.exception("Unexpected database health check failure.")
+            return jsonify({"status": "error", "database": "unavailable", "detail": str(exc)}), 503
         finally:
             if cursor is not None:
                 try:
