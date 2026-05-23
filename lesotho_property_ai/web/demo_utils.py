@@ -6,7 +6,6 @@ changing the underlying training/recommendation pipeline.
 
 from __future__ import annotations
 
-import hashlib
 import shutil
 from pathlib import Path
 from types import SimpleNamespace
@@ -51,7 +50,7 @@ def save_uploaded_property_images(base_dir: Path, files: list[FileStorage]) -> l
 
 
 def analyze_uploaded_property(base_dir: Path, files: list[FileStorage]) -> dict[str, object]:
-    """Run a lightweight CNN demo against uploaded property images."""
+    """Run the saved vision models against uploaded property images."""
 
     saved_images = save_uploaded_property_images(base_dir, files)
     if not saved_images:
@@ -59,71 +58,33 @@ def analyze_uploaded_property(base_dir: Path, files: list[FileStorage]) -> dict[
 
     image_paths = [item["path"] for item in saved_images]
     analyzer = PropertyVisionAnalyzer()
-    seed = hashlib.sha256(image_paths[0].encode("utf-8")).hexdigest()
-    property_row = {
-        "property_id": f"UPLOAD-{seed[:10]}",
-        "source": "admin_upload",
-        "title": "Uploaded Property",
-        "description_en": "Admin-uploaded property image for CNN analysis.",
-        "description_st": "",
-        "price": 0,
-        "currency": "LSL",
-        "district": "Maseru",
-        "district_canonical": "Maseru",
-        "location_text": "Uploaded demo image",
-        "locality": "Maseru",
-        "property_type": "House",
-        "bedrooms": 3,
-        "bathrooms": 2,
-        "image_paths": image_paths,
-        "listing_url": "",
-        "condition": "Good",
-        "style": "Modern",
-        "environment": "Suburban",
-        "amenities": ["parking", "road access"],
-        "listing_intent": "sale",
-    }
-    frame = pd.DataFrame([property_row])
-    result = analyzer.analyze(frame)
-    analyzed = result.dataframe.iloc[0].to_dict()
+    analyzed = analyzer.analyze_uploaded_images(image_paths)
 
     first_image = Path(image_paths[0])
     features = analyzer._extract_image_features(first_image)  # type: ignore[attr-defined]
-    if not str(analyzed.get("predicted_style", "")).strip():
-        analyzed["predicted_style"] = "Modern" if features["brightness"] >= 0.58 else "Traditional"
-    if not str(analyzed.get("predicted_environment", "")).strip():
-        analyzed["predicted_environment"] = "Garden" if features["green"] >= 0.42 else "Suburban"
-    if not str(analyzed.get("predicted_condition", "")).strip():
-        analyzed["predicted_condition"] = "New" if features["brightness"] >= 0.64 else "Good"
-
-    confidence = float(analyzed.get("vision_confidence", 0.72) or 0.72)
-    confidence = max(0.58, min(confidence, 0.97))
+    confidence = float(analyzed.get("confidence", 0.0) or 0.0)
+    confidence = max(0.05, min(confidence, 0.99))
 
     return {
         "image_count": len(saved_images),
         "image_relpaths": [item["relpath"] for item in saved_images],
-        "predicted_property_type": str(analyzed.get("predicted_property_type", "House") or "House"),
-        "predicted_condition": str(analyzed.get("predicted_condition", "Good") or "Good"),
-        "predicted_style": str(analyzed.get("predicted_style", "Modern") or "Modern"),
-        "predicted_environment": str(analyzed.get("predicted_environment", "Suburban") or "Suburban"),
-        "predicted_bedrooms": int(float(analyzed.get("predicted_bedrooms", 3) or 3)),
+        "supported_for_property_workflow": bool(analyzed.get("supported_for_property_workflow")),
+        "allow_nlp_send": bool(analyzed.get("allow_nlp_send")),
+        "analysis_message": str(analyzed.get("analysis_message", "") or ""),
+        "scene_hint": str(analyzed.get("scene_hint", "") or ""),
+        "scope_similarity": analyzed.get("scope_similarity"),
+        "predicted_property_type": str(analyzed.get("predicted_property_type", "Not available") or "Not available"),
+        "predicted_condition": str(analyzed.get("predicted_condition", "Not available") or "Not available"),
+        "predicted_style": str(analyzed.get("predicted_style", "Not available") or "Not available"),
+        "predicted_environment": str(analyzed.get("predicted_environment", "Not available") or "Not available"),
+        "predicted_bedrooms": analyzed.get("predicted_bedrooms", "Not available"),
         "confidence": round(confidence, 3),
         "feature_snapshot": {
             "brightness": round(float(features["brightness"]), 3),
             "contrast": round(float(features["contrast"]), 3),
             "green": round(float(features["green"]), 3),
         },
-        "prefill": {
-            "title": "Uploaded Property",
-            "district": "Maseru",
-            "locality": "Maseru",
-            "price": 1850000,
-            "bedrooms": int(float(analyzed.get("predicted_bedrooms", 3) or 3)),
-            "property_type": str(analyzed.get("predicted_property_type", "House") or "House"),
-            "condition": str(analyzed.get("predicted_condition", "Good") or "Good"),
-            "environment": str(analyzed.get("predicted_environment", "Suburban") or "Suburban"),
-            "amenities": "parking, road access",
-        },
+        "prefill": analyzed.get("prefill", {}),
     }
 
 

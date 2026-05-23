@@ -342,6 +342,7 @@ button,input,select,textarea{font:inherit}
 .property-tags{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0}
 .mini-tag{padding:6px 10px;border-radius:999px;background:#1c2540;border:1px solid var(--border);font-size:12px;color:#cdd7f5}
 .property-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+.helper-text{color:#a8b4d8;font-size:14px;line-height:1.5}
 
 .score-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:16px}
 .score-grid div{padding:14px;border-radius:16px;background:#1c2540;border:1px solid rgba(255,255,255,.06)}

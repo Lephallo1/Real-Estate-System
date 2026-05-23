@@ -1,0 +1,47 @@
+LesothoHomeAI - Exact terminal commands for the training/demo pipeline
+
+Run these commands from PowerShell.
+
+1. Go to the project folder
+cd "C:\Users\lepha\Documents\Codex\Real Estate System"
+
+2. Install requirements
+py -m pip install -r requirements.txt
+
+3. Refresh the scraped property data
+py scripts\run_scraper.py
+
+4. Prepare the modeling datasets
+py scripts\prepare_modeling_dataset.py
+
+5. Prepare and apply the house label review set
+py scripts\prepare_house_label_review.py
+py scripts\seed_house_label_review.py
+py scripts\apply_house_label_review.py
+
+6. Train the main house vision model
+py scripts\train_house_vision_model.py
+
+7. Train the grouped bedroom support model
+py scripts\train_house_bedroom_model.py
+
+8. Train the residential property-type classifier
+py scripts\train_residential_property_type_model.py
+
+9. Evaluate the bedroom improvement story
+py scripts\evaluate_bedroom_improvement.py
+
+10. Evaluate the NLP module outputs
+py scripts\evaluate_nlp_module.py
+
+11. Refresh the recommendation demo outputs
+py scripts\run_house_recommendation_demo.py --listing-intent sale --top-n 3 --clients 6
+
+12. Optional: launch the Flask dashboard locally after training
+py flask_app.py
+
+Main output folders to screenshot:
+generated\artifacts\vision
+generated\artifacts\nlp
+generated\artifacts\recommendation
+generated\artifacts\review

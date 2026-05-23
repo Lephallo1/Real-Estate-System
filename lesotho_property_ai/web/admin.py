@@ -60,6 +60,15 @@ def _bar_rows(values: dict[str, object] | None) -> list[dict[str, object]]:
     return rows
 
 
+def _presentation_property_type_rows(values: dict[str, object] | None) -> list[dict[str, object]]:
+    hidden_labels = {"site"}
+    return [
+        row
+        for row in _safe_count_map(values)
+        if str(row["label"]).strip().lower() not in hidden_labels
+    ]
+
+
 def _admin_sidebar_groups() -> list[dict[str, object]]:
     try:
         stock_count = int(len(load_stock_frame()))
@@ -296,6 +305,12 @@ def web_scraping():
     summary = load_artifact_json("real_only_scrape_summary.json")
     properties = load_artifact_csv("real_only_properties_cleaned.csv")
     source_counts = _safe_count_map(summary.get("clean_source_counts", {}))
+    presentation_properties = properties.copy()
+    if not presentation_properties.empty and "property_type" in presentation_properties.columns:
+        presentation_properties = presentation_properties.loc[
+            ~presentation_properties["property_type"].fillna("").astype(str).str.lower().eq("site")
+        ].copy()
+    property_type_rows = _presentation_property_type_rows(summary.get("clean_property_type_counts", {}))
     scraping_rows = [
         {"label": "Raw records", "value": int(summary.get("raw_records", 0))},
         {"label": "Clean records", "value": int(summary.get("clean_records", 0))},
@@ -310,9 +325,13 @@ def web_scraping():
         summary_cards=scraping_rows,
         source_rows=source_counts,
         source_bar_rows=_bar_rows(summary.get("clean_source_counts", {})),
-        property_type_rows=_safe_count_map(summary.get("clean_property_type_counts", {})),
+        property_type_rows=property_type_rows,
         listing_intent_rows=_safe_count_map(summary.get("clean_listing_intent_counts", {})),
-        sample=preview_frame(properties, ["source", "district", "property_type", "listing_intent", "price", "listing_url"], limit=20),
+        sample=preview_frame(
+            presentation_properties,
+            ["source", "district", "property_type", "listing_intent", "price", "listing_url"],
+            limit=20,
+        ),
         sources_requested=summary.get("sources_requested", []),
     )
 
@@ -683,7 +702,7 @@ def settings():
         db_summary = {
             "Host": settings.host,
             "Port": settings.port,
-            "Database": settings.database,
+            "Database": settings.name,
             "User": settings.user,
         }
     except Exception as exc:

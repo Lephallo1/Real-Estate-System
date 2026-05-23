@@ -39,16 +39,23 @@
           <img src="{{ url_for('media_image', relpath=vision_demo.image_relpaths[0]) }}" alt="Uploaded property preview">
         {% endif %}
       </div>
+      <p class="panel-copy">{{ vision_demo.analysis_message }}</p>
       <div class="key-value-stack">
         <div><span>Predicted bedrooms</span><strong>{{ vision_demo.predicted_bedrooms }}</strong></div>
         <div><span>Property type</span><strong>{{ vision_demo.predicted_property_type }}</strong></div>
         <div><span>Condition</span><strong>{{ vision_demo.predicted_condition }}</strong></div>
         <div><span>Style</span><strong>{{ vision_demo.predicted_style }}</strong></div>
         <div><span>Environment</span><strong>{{ vision_demo.predicted_environment }}</strong></div>
+        <div><span>Scene hint</span><strong>{{ vision_demo.scene_hint }}</strong></div>
+        <div><span>Scope similarity</span><strong>{{ vision_demo.scope_similarity }}</strong></div>
         <div><span>Confidence</span><strong>{{ vision_demo.confidence }}</strong></div>
       </div>
       <div class="property-actions top-gap">
-        <a class="primary-btn small" href="{{ url_for('admin.nlp_studio', prefill='vision') }}">Send to NLP Studio</a>
+        {% if vision_demo.allow_nlp_send %}
+          <a class="primary-btn small" href="{{ url_for('admin.nlp_studio', prefill='vision') }}">Send to NLP Studio</a>
+        {% else %}
+          <span class="helper-text">NLP handoff is enabled only for supported house-image results.</span>
+        {% endif %}
       </div>
     {% else %}
       <p class="panel-copy">Upload one or more property images to run the demo analyzer and reveal the predicted property attributes here.</p>

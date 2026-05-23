@@ -24,7 +24,7 @@
     <div class="panel-head"><h2>Scraping evaluation</h2></div>
     <div class="key-value-stack">
       <div><span>Sources requested</span><strong>{{ sources_requested|join(', ') }}</strong></div>
-      <div><span>Property type classes</span><strong>{{ property_type_rows|length }}</strong></div>
+      <div><span>Presented residential classes</span><strong>{{ property_type_rows|length }}</strong></div>
       <div><span>Listing intent classes</span><strong>{{ listing_intent_rows|length }}</strong></div>
     </div>
   </article>
@@ -50,7 +50,7 @@
 </details>
 
 <details class="accordion">
-  <summary>Open property type summary</summary>
+  <summary>Open residential property summary</summary>
   <div class="accordion-body">
     <div class="simple-table">
       {% for row in property_type_rows %}

@@ -9,7 +9,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import pickle
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -20,6 +22,256 @@ from PIL import Image
 from lesotho_property_ai.artifacts import resolve_artifact_path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+SUPPORTED_RESIDENTIAL_TYPES = ("Apartment", "House", "Townhouse")
+NON_PROPERTY_HINT_KEYWORDS = (
+    "car",
+    "truck",
+    "bus",
+    "van",
+    "cab",
+    "jeep",
+    "limousine",
+    "minivan",
+    "wagon",
+    "bike",
+    "bicycle",
+    "motorcycle",
+    "moped",
+    "scooter",
+    "screen",
+    "monitor",
+    "computer",
+    "laptop",
+    "notebook",
+    "television",
+    "web site",
+)
+
+
+class _MultiHeadVisionModelProxy:
+    def __init__(self, feature_extractor, hidden_dim: int, head_sizes: dict[str, int], nn) -> None:
+        self.nn = nn
+        self.feature_extractor = feature_extractor
+        self.neck = nn.Sequential(
+            nn.Linear(hidden_dim, 256),
+            nn.BatchNorm1d(256),
+            nn.ReLU(inplace=True),
+            nn.Dropout(0.35),
+        )
+        self.heads = nn.ModuleDict(
+            {
+                task: nn.Linear(256, output_size)
+                for task, output_size in head_sizes.items()
+            }
+        )
+
+    def to_module(self):
+        nn = self.nn
+
+        class MultiHeadVisionModel(nn.Module):
+            def __init__(self, feature_extractor, neck, heads) -> None:
+                super().__init__()
+                self.feature_extractor = feature_extractor
+                self.neck = neck
+                self.heads = heads
+
+            def forward(self, inputs):
+                features = self.feature_extractor(inputs)
+                features = self.neck(features)
+                return {task: head(features) for task, head in self.heads.items()}
+
+        return MultiHeadVisionModel(self.feature_extractor, self.neck, self.heads)
+
+
+def _artifact_root() -> Path:
+    return PROJECT_ROOT / "generated" / "artifacts"
+
+
+def _resolve_generated_image_path(value: object) -> Path | None:
+    raw = str(value).strip()
+    if not raw:
+        return None
+    direct = Path(raw)
+    if direct.exists():
+        return direct
+    normalized = raw.replace("/", "\\")
+    marker = "generated\\images\\"
+    lowered = normalized.lower()
+    if marker not in lowered:
+        return None
+    suffix = normalized[lowered.index(marker) :].replace("\\", "/")
+    candidate = PROJECT_ROOT / Path(suffix)
+    return candidate if candidate.exists() else None
+
+
+def _scope_descriptor_for_path(image_path: Path) -> np.ndarray:
+    with Image.open(image_path) as source_image:
+        image = source_image.convert("RGB").resize((64, 64))
+        pixels = np.asarray(image, dtype=np.float32) / 255.0
+    grayscale = pixels.mean(axis=2)
+    channel_means = pixels.mean(axis=(0, 1))
+    channel_stds = pixels.std(axis=(0, 1))
+    gray_hist, _ = np.histogram(grayscale, bins=8, range=(0.0, 1.0), density=True)
+    rgb_hist_parts = []
+    for channel in range(3):
+        hist, _ = np.histogram(pixels[:, :, channel], bins=8, range=(0.0, 1.0), density=True)
+        rgb_hist_parts.append(hist)
+    grad_x = np.abs(np.diff(grayscale, axis=1)).mean()
+    grad_y = np.abs(np.diff(grayscale, axis=0)).mean()
+    spatial = grayscale.reshape(4, 16, 4, 16).mean(axis=(1, 3)).flatten()
+    descriptor = np.concatenate(
+        [
+            channel_means,
+            channel_stds,
+            np.asarray([grayscale.mean(), grayscale.std(), grad_x, grad_y], dtype=np.float32),
+            gray_hist.astype(np.float32),
+            np.concatenate(rgb_hist_parts).astype(np.float32),
+            spatial.astype(np.float32),
+        ]
+    )
+    norm = float(np.linalg.norm(descriptor))
+    if norm > 0:
+        descriptor = descriptor / norm
+    return descriptor.astype(np.float32)
+
+
+@lru_cache(maxsize=1)
+def _residential_scope_bank() -> np.ndarray:
+    descriptors: list[np.ndarray] = []
+    for filename in ("properties_residential_cnn_images.csv", "properties_house_reviewed_images.csv"):
+        csv_path = resolve_artifact_path(_artifact_root(), filename)
+        if not csv_path.exists():
+            continue
+        frame = pd.read_csv(csv_path)
+        if "image_path" not in frame.columns:
+            continue
+        if "cnn_property_type" in frame.columns:
+            frame = frame.loc[
+                frame["cnn_property_type"].fillna("").astype(str).isin(SUPPORTED_RESIDENTIAL_TYPES)
+            ].copy()
+        for image_value in frame["image_path"].dropna().astype(str).tolist():
+            resolved = _resolve_generated_image_path(image_value)
+            if resolved is None:
+                continue
+            try:
+                descriptors.append(_scope_descriptor_for_path(resolved))
+            except Exception:
+                continue
+    if not descriptors:
+        return np.empty((0, 0), dtype=np.float32)
+    return np.vstack(descriptors)
+
+
+@lru_cache(maxsize=1)
+def _house_scope_bank() -> np.ndarray:
+    csv_path = resolve_artifact_path(_artifact_root(), "properties_house_reviewed_images.csv")
+    if not csv_path.exists():
+        return np.empty((0, 0), dtype=np.float32)
+    frame = pd.read_csv(csv_path)
+    descriptors: list[np.ndarray] = []
+    for image_value in frame.get("image_path", pd.Series(dtype=str)).dropna().astype(str).tolist():
+        resolved = _resolve_generated_image_path(image_value)
+        if resolved is None:
+            continue
+        try:
+            descriptors.append(_scope_descriptor_for_path(resolved))
+        except Exception:
+            continue
+    if not descriptors:
+        return np.empty((0, 0), dtype=np.float32)
+    return np.vstack(descriptors)
+
+
+@lru_cache(maxsize=4)
+def _load_cached_torch_bundle(artifact_prefix: str) -> dict[str, Any] | None:
+    try:
+        import torch
+        from torch import nn
+        from torchvision import models, transforms
+    except ModuleNotFoundError:
+        return None
+
+    model_path = resolve_artifact_path(_artifact_root(), f"{artifact_prefix}_multitask.pt")
+    if not model_path.exists():
+        return None
+    checkpoint = torch.load(model_path, map_location="cpu")
+    label_maps = checkpoint.get("label_maps", {})
+    tasks = tuple(checkpoint.get("tasks", tuple(label_maps.keys())))
+    if not label_maps or not tasks:
+        return None
+
+    backbone = models.resnet18(weights=None)
+    feature_dim = backbone.fc.in_features
+    backbone.fc = nn.Identity()
+    proxy = _MultiHeadVisionModelProxy(
+        backbone,
+        feature_dim,
+        {task: len(label_maps[task]) for task in tasks},
+        nn,
+    )
+    model = proxy.to_module()
+    model.load_state_dict(checkpoint["model_state_dict"])
+    model.eval()
+    transform = transforms.Compose(
+        [
+            transforms.Resize((208, 208)),
+            transforms.CenterCrop(192),
+            transforms.ToTensor(),
+            transforms.Normalize(
+                mean=[0.485, 0.456, 0.406],
+                std=[0.229, 0.224, 0.225],
+            ),
+        ]
+    )
+    return {
+        "mode": "torch",
+        "model": model,
+        "label_maps": label_maps,
+        "tasks": tasks,
+        "transform": transform,
+        "torch": torch,
+    }
+
+
+@lru_cache(maxsize=4)
+def _load_cached_fallback_bundle(artifact_prefix: str) -> dict[str, Any] | None:
+    model_path = resolve_artifact_path(_artifact_root(), f"{artifact_prefix}_fallback_models.pkl")
+    if not model_path.exists():
+        return None
+    with model_path.open("rb") as handle:
+        payload = pickle.load(handle)
+    models = payload.get("models", {})
+    label_maps = payload.get("label_maps", {})
+    if not models or not label_maps:
+        return None
+    return {
+        "mode": "fallback",
+        "models": models,
+        "label_maps": label_maps,
+        "tasks": tuple(label_maps.keys()),
+    }
+
+
+@lru_cache(maxsize=1)
+def _load_cached_imagenet_probe() -> dict[str, Any] | None:
+    try:
+        import torch
+        from torchvision import models
+    except ModuleNotFoundError:
+        return None
+
+    weights = models.ResNet18_Weights.DEFAULT
+    checkpoint = Path(torch.hub.get_dir()) / "checkpoints" / Path(weights.url).name
+    if not checkpoint.exists():
+        return None
+    model = models.resnet18(weights=weights)
+    model.eval()
+    return {
+        "torch": torch,
+        "model": model,
+        "transform": weights.transforms(),
+        "categories": tuple(weights.meta["categories"]),
+    }
 
 
 @dataclass(slots=True)
@@ -55,6 +307,170 @@ class PropertyVisionAnalyzer:
             except Exception:
                 return self._analyze_with_fallback(properties)
         return self._analyze_with_fallback(properties)
+
+    def analyze_uploaded_images(self, image_paths: list[str]) -> dict[str, Any]:
+        """Run actual saved-model inference for uploaded dashboard images.
+
+        The admin demo should not invent `House / 3 bedrooms / Modern` defaults.
+        Instead, it first checks whether the upload looks like a supported
+        residential property image, then applies the saved residential
+        property-type model and, for house images, the house-specific support
+        models.
+        """
+
+        resolved_paths = [Path(path) for path in image_paths if str(path).strip()]
+        if not resolved_paths:
+            raise ValueError("Please upload at least one property image.")
+
+        per_image: list[dict[str, Any]] = []
+        for image_path in resolved_paths:
+            property_type_prediction = self._predict_saved_tasks(image_path, "residential_property_type")
+            property_type_label = property_type_prediction.get("cnn_property_type", {}).get("label", "Unknown")
+            property_type_confidence = float(
+                property_type_prediction.get("cnn_property_type", {}).get("confidence", 0.0)
+            )
+            scope = self._assess_uploaded_scope(image_path, property_type_confidence)
+            per_image.append(
+                {
+                    "path": str(image_path),
+                    "property_type": str(property_type_label),
+                    "property_type_confidence": property_type_confidence,
+                    "scope": scope,
+                }
+            )
+
+        supported_images = [row for row in per_image if row["scope"]["supported"]]
+        if not supported_images:
+            strongest = max(per_image, key=lambda row: float(row["scope"]["support_score"]))
+            return {
+                "supported_for_property_workflow": False,
+                "allow_nlp_send": False,
+                "house_specialized": False,
+                "predicted_property_type": "Out of scope",
+                "predicted_condition": "Not available",
+                "predicted_style": "Not available",
+                "predicted_environment": "Not available",
+                "predicted_bedrooms": "Not available",
+                "confidence": round(float(strongest["scope"]["support_score"]), 3),
+                "analysis_message": (
+                    "The uploaded image looks outside the residential-property training scope, "
+                    "so the dashboard will not invent house attributes for it."
+                ),
+                "scene_hint": strongest["scope"]["scene_hint"],
+                "scope_similarity": round(float(strongest["scope"]["top_similarity"]), 3),
+                "prefill": {},
+            }
+
+        dominant_property_type = self._weighted_majority(
+            [
+                (row["property_type"], max(row["property_type_confidence"], float(row["scope"]["support_score"])))
+                for row in supported_images
+            ]
+        )
+        best_house_similarity = max(float(row["scope"].get("house_similarity", 0.0)) for row in supported_images)
+        if best_house_similarity >= 0.9:
+            dominant_property_type = "House"
+        mean_confidence = round(
+            float(
+                np.mean(
+                    [
+                        max(row["property_type_confidence"], float(row["scope"]["support_score"]))
+                        for row in supported_images
+                    ]
+                )
+            ),
+            3,
+        )
+        best_scope = max(supported_images, key=lambda row: float(row["scope"]["support_score"]))["scope"]
+
+        if dominant_property_type != "House":
+            return {
+                "supported_for_property_workflow": True,
+                "allow_nlp_send": False,
+                "house_specialized": False,
+                "predicted_property_type": dominant_property_type,
+                "predicted_condition": "Residential scene detected",
+                "predicted_style": "House-only detail model not applied",
+                "predicted_environment": best_scope["scene_hint"],
+                "predicted_bedrooms": "Not available",
+                "confidence": mean_confidence,
+                "analysis_message": (
+                    "The upload looks like a residential property image, but the detailed bedroom "
+                    "and house-attribute heads are only calibrated for house listings."
+                ),
+                "scene_hint": best_scope["scene_hint"],
+                "scope_similarity": round(float(best_scope["top_similarity"]), 3),
+                "prefill": {},
+            }
+
+        house_predictions = [
+            self._predict_saved_tasks(Path(row["path"]), "house_vision")
+            for row in supported_images
+        ]
+        bedroom_predictions = [
+            self._predict_saved_tasks(Path(row["path"]), "house_bedroom")
+            for row in supported_images
+        ]
+
+        predicted_condition = self._weighted_majority_from_predictions(house_predictions, "condition", "Good")
+        predicted_style = self._weighted_majority_from_predictions(house_predictions, "style", "Modern")
+        predicted_environment = self._weighted_majority_from_predictions(
+            house_predictions,
+            "environment",
+            best_scope["scene_hint"],
+        )
+        bedroom_label = self._weighted_majority_from_predictions(
+            bedroom_predictions,
+            "cnn_bedroom_class",
+            self._weighted_majority_from_predictions(house_predictions, "cnn_bedroom_class", "3"),
+        )
+        predicted_bedrooms = self._bedroom_label_to_int(bedroom_label, 3)
+        combined_confidence = round(
+            float(
+                np.mean(
+                    [
+                        max(
+                            float(row["scope"]["support_score"]),
+                            self._prediction_confidence(house_predictions[index], "condition"),
+                            self._prediction_confidence(house_predictions[index], "style"),
+                            self._prediction_confidence(house_predictions[index], "environment"),
+                            self._prediction_confidence(bedroom_predictions[index], "cnn_bedroom_class"),
+                        )
+                        for index, row in enumerate(supported_images)
+                    ]
+                )
+            ),
+            3,
+        )
+
+        return {
+            "supported_for_property_workflow": True,
+            "allow_nlp_send": True,
+            "house_specialized": True,
+            "predicted_property_type": "House",
+            "predicted_condition": predicted_condition,
+            "predicted_style": predicted_style,
+            "predicted_environment": predicted_environment,
+            "predicted_bedrooms": predicted_bedrooms,
+            "confidence": combined_confidence,
+            "analysis_message": (
+                "The uploaded image was analysed with the saved residential property, bedroom, "
+                "and house-attribute models."
+            ),
+            "scene_hint": best_scope["scene_hint"],
+            "scope_similarity": round(float(best_scope["top_similarity"]), 3),
+            "prefill": {
+                "title": "Uploaded Property",
+                "district": "Maseru",
+                "locality": "Maseru",
+                "price": 1850000,
+                "bedrooms": predicted_bedrooms,
+                "property_type": "House",
+                "condition": predicted_condition,
+                "environment": predicted_environment,
+                "amenities": "parking, road access",
+            },
+        }
 
     def _analyze_from_saved_training(self, properties: pd.DataFrame) -> VisionAnalysisResult | None:
         artifact_root = PROJECT_ROOT / "generated" / "artifacts"
@@ -310,6 +726,185 @@ class PropertyVisionAnalyzer:
             "bedroom_mae": round(float(np.mean(bedroom_errors)) if bedroom_errors else 0.0, 3),
         }
         return VisionAnalysisResult(pd.DataFrame(rows), metrics)
+
+    def _predict_saved_tasks(self, image_path: Path, artifact_prefix: str) -> dict[str, dict[str, float | str]]:
+        torch_bundle = _load_cached_torch_bundle(artifact_prefix) if self.torch_available else None
+        if torch_bundle is not None:
+            return self._predict_with_torch_bundle(image_path, torch_bundle)
+        fallback_bundle = _load_cached_fallback_bundle(artifact_prefix)
+        if fallback_bundle is not None:
+            return self._predict_with_fallback_bundle(image_path, fallback_bundle)
+        return {}
+
+    @staticmethod
+    def _predict_with_torch_bundle(
+        image_path: Path,
+        bundle: dict[str, Any],
+    ) -> dict[str, dict[str, float | str]]:
+        torch = bundle["torch"]
+        model = bundle["model"]
+        transform = bundle["transform"]
+        label_maps = bundle["label_maps"]
+        predictions: dict[str, dict[str, float | str]] = {}
+        with Image.open(image_path) as source_image:
+            image = source_image.convert("RGB")
+        tensor = transform(image).unsqueeze(0)
+        with torch.no_grad():
+            outputs = model(tensor)
+        for task in bundle["tasks"]:
+            logits = outputs[task]
+            probabilities = torch.softmax(logits, dim=1).squeeze(0).cpu().numpy()
+            top_index = int(np.argmax(probabilities))
+            labels = label_maps[task]
+            predictions[task] = {
+                "label": str(labels[top_index]),
+                "confidence": float(probabilities[top_index]),
+            }
+        return predictions
+
+    def _predict_with_fallback_bundle(
+        self,
+        image_path: Path,
+        bundle: dict[str, Any],
+    ) -> dict[str, dict[str, float | str]]:
+        vector = self._training_feature_vector(image_path).reshape(1, -1)
+        predictions: dict[str, dict[str, float | str]] = {}
+        for task in bundle["tasks"]:
+            model = bundle["models"][task]
+            labels = bundle["label_maps"][task]
+            predicted_index = int(model.predict(vector)[0])
+            confidence = 0.55
+            if hasattr(model, "predict_proba"):
+                probabilities = model.predict_proba(vector)[0]
+                predicted_index = int(np.argmax(probabilities))
+                confidence = float(probabilities[predicted_index])
+            predictions[task] = {
+                "label": str(labels[predicted_index]),
+                "confidence": confidence,
+            }
+        return predictions
+
+    def _assess_uploaded_scope(self, image_path: Path, property_type_confidence: float) -> dict[str, float | str | bool]:
+        descriptor = _scope_descriptor_for_path(image_path)
+        bank = _residential_scope_bank()
+        house_bank = _house_scope_bank()
+        top_similarity = 0.0
+        mean_top_similarity = 0.0
+        house_similarity = 0.0
+        if bank.size:
+            similarities = bank @ descriptor
+            top_similarity = float(np.max(similarities))
+            top_k = min(5, len(similarities))
+            if top_k:
+                mean_top_similarity = float(np.sort(similarities)[-top_k:].mean())
+        if house_bank.size:
+            house_similarity = float(np.max(house_bank @ descriptor))
+        support_score = 0.62 * max(top_similarity, 0.0) + 0.38 * max(property_type_confidence, 0.0)
+        supported = top_similarity >= 0.84 and support_score >= 0.74
+        features = self._extract_image_features(image_path)
+        if features["green"] >= 0.42:
+            scene_hint = "Garden / outdoor residential scene"
+        elif features["contrast"] >= 0.19:
+            scene_hint = "Urban / high-detail residential scene"
+        else:
+            scene_hint = "Built-up residential scene"
+        probe = self._probe_general_scene(image_path)
+        if probe and probe["looks_non_property"]:
+            supported = False
+            scene_hint = f"Detected {probe['label']}"
+            support_score = min(support_score, 0.45)
+        return {
+            "supported": supported,
+            "support_score": round(float(support_score), 3),
+            "top_similarity": round(float(top_similarity), 3),
+            "mean_top_similarity": round(float(mean_top_similarity), 3),
+            "house_similarity": round(float(house_similarity), 3),
+            "scene_hint": scene_hint,
+        }
+
+    @staticmethod
+    def _weighted_majority(weighted_labels: list[tuple[str, float]]) -> str:
+        scores: dict[str, float] = {}
+        for label, weight in weighted_labels:
+            scores[str(label)] = scores.get(str(label), 0.0) + float(weight)
+        if not scores:
+            return ""
+        return max(scores.items(), key=lambda item: (item[1], item[0]))[0]
+
+    def _weighted_majority_from_predictions(
+        self,
+        predictions: list[dict[str, dict[str, float | str]]],
+        task: str,
+        default: str,
+    ) -> str:
+        weighted = []
+        for prediction in predictions:
+            task_prediction = prediction.get(task)
+            if not task_prediction:
+                continue
+            weighted.append(
+                (
+                    str(task_prediction["label"]),
+                    float(task_prediction.get("confidence", 0.0)),
+                )
+            )
+        return self._weighted_majority(weighted) or default
+
+    @staticmethod
+    def _prediction_confidence(prediction: dict[str, dict[str, float | str]], task: str) -> float:
+        task_prediction = prediction.get(task, {})
+        return float(task_prediction.get("confidence", 0.0)) if isinstance(task_prediction, dict) else 0.0
+
+    @staticmethod
+    def _training_feature_vector(image_path: Path) -> np.ndarray:
+        with Image.open(image_path) as source_image:
+            image = source_image.convert("RGB")
+            resized = image.resize((96, 96))
+            pixels = np.asarray(resized, dtype=np.float32) / 255.0
+        channel_means = pixels.mean(axis=(0, 1))
+        channel_stds = pixels.std(axis=(0, 1))
+        grayscale = pixels.mean(axis=2)
+        brightness = float(grayscale.mean())
+        contrast = float(grayscale.std())
+        vector = np.asarray(
+            [
+                float(channel_means[0]),
+                float(channel_means[1]),
+                float(channel_means[2]),
+                float(channel_stds[0]),
+                float(channel_stds[1]),
+                float(channel_stds[2]),
+                brightness,
+                contrast,
+                round(resized.width / max(resized.height, 1), 4),
+                float(np.square(grayscale).mean()),
+            ],
+            dtype=np.float32,
+        )
+        return vector
+
+    def _probe_general_scene(self, image_path: Path) -> dict[str, Any] | None:
+        bundle = _load_cached_imagenet_probe()
+        if bundle is None:
+            return None
+        torch = bundle["torch"]
+        model = bundle["model"]
+        transform = bundle["transform"]
+        categories = bundle["categories"]
+        with Image.open(image_path) as source_image:
+            image = source_image.convert("RGB")
+        tensor = transform(image).unsqueeze(0)
+        with torch.no_grad():
+            probabilities = torch.softmax(model(tensor), dim=1).squeeze(0).cpu().numpy()
+        top_index = int(np.argmax(probabilities))
+        label = str(categories[top_index]).lower()
+        confidence = float(probabilities[top_index])
+        looks_non_property = confidence >= 0.18 and any(keyword in label for keyword in NON_PROPERTY_HINT_KEYWORDS)
+        return {
+            "label": label,
+            "confidence": confidence,
+            "looks_non_property": looks_non_property,
+        }
 
     @staticmethod
     def _majority_vote(group: pd.DataFrame, column: str, default: str) -> str:
