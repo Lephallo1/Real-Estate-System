@@ -9,6 +9,7 @@ from flask import Blueprint, current_app, flash, redirect, render_template, requ
 
 from lesotho_property_ai.db import resolve_database_settings
 
+from .admin_actions import ADMIN_ACTIONS
 from .auth import role_required
 from .demo_utils import analyze_uploaded_property, generate_nlp_demo_output
 from .helpers import (
@@ -23,28 +24,9 @@ from .helpers import (
     recommendation_cards,
     stock_card_rows,
 )
-from .task_actions import run_script
+from .task_actions import action_choices, read_action_job, start_action_job
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
-
-ADMIN_ACTIONS = {
-    "scraper": ("Scrape New", [("run_scraper.py", ["--live-limit", "10", "--include-rentals", "--max-images", "3"])]),
-    "prepare": ("Prepare Dataset", [("prepare_modeling_dataset.py", [])]),
-    "nlp": ("Evaluate NLP", [("evaluate_nlp_module.py", [])]),
-    "vision": (
-        "Train Vision Models",
-        [
-            ("train_house_vision_model.py", []),
-            ("train_house_bedroom_model.py", []),
-            ("train_residential_property_type_model.py", []),
-            ("evaluate_bedroom_improvement.py", []),
-        ],
-    ),
-    "recommendations": (
-        "Refresh Demo Matches",
-        [("run_house_recommendation_demo.py", ["--listing-intent", "sale", "--top-n", "3", "--clients", "6"])],
-    ),
-}
 
 
 @admin_bp.get("/access")
@@ -129,23 +111,20 @@ def _admin_sidebar_groups() -> list[dict[str, object]]:
     ]
 
 
-def _run_action(action_key: str) -> None:
-    label, commands = ADMIN_ACTIONS[action_key]
-    outputs = []
-    for script_name, args in commands:
-        outputs.append(run_script(current_app.config["BASE_DIR"], script_name, *args))
-        if not outputs[-1].success:
-            break
-    if all(result.success for result in outputs):
-        flash(f"{label} completed successfully.", "success")
-    else:
-        stderr = next((result.stderr.strip() for result in outputs if not result.success and result.stderr.strip()), "")
-        flash(f"{label} failed. {stderr}", "danger")
+def _module_action_context(action_key: str) -> dict[str, object]:
+    module_action = read_action_job(current_app.config["BASE_DIR"], action_key)
+    return {
+        "module_action": module_action,
+        "auto_refresh_seconds": 5 if module_action.running else None,
+    }
 
 
 def _render_admin(template_name: str, **context):
     context.setdefault("sidebar_groups", _admin_sidebar_groups())
-    context.setdefault("quick_actions", [{"key": key, "label": value[0]} for key, value in ADMIN_ACTIONS.items()])
+    context.setdefault("quick_actions", action_choices())
+    module_action = context.get("module_action")
+    if module_action and getattr(module_action, "running", False):
+        context.setdefault("auto_refresh_seconds", 5)
     return render_template(template_name, **context)
 
 
@@ -155,7 +134,17 @@ def run_action(action_key: str):
     if action_key not in ADMIN_ACTIONS:
         flash("Unknown admin action.", "danger")
         return redirect(request.referrer or url_for("admin.overview"))
-    _run_action(action_key)
+    state = start_action_job(current_app.config["BASE_DIR"], action_key)
+    if state.status == "blocked":
+        flash(state.message or state.availability_message, "warning")
+    elif state.running and "started in the background" in state.message.lower():
+        flash(state.message, "success")
+    elif state.running:
+        flash(f"{state.label} is already running. The page will refresh with the latest output.", "info")
+    elif state.status == "failed":
+        flash(state.message or f"{state.label} failed.", "danger")
+    else:
+        flash(state.message or f"{state.label} status updated.", "info")
     return redirect(request.referrer or url_for("admin.overview"))
 
 
@@ -317,6 +306,7 @@ def web_scraping():
         "admin/web_scraping.html",
         page_title="Web Scraping",
         sidebar_title="Web Scraping",
+        **_module_action_context("scraper"),
         summary_cards=scraping_rows,
         source_rows=source_counts,
         source_bar_rows=_bar_rows(summary.get("clean_source_counts", {})),
@@ -365,6 +355,7 @@ def data_preparation():
         "admin/data_preparation.html",
         page_title="Data Preparation",
         sidebar_title="Data Preparation",
+        **_module_action_context("prepare"),
         summary_cards=[
             {"label": "Residential Rows", "value": int(summary.get("residential_rows", 0))},
             {"label": "CNN Candidates", "value": int(summary.get("cnn_candidate_rows", 0))},
@@ -412,6 +403,7 @@ def vision():
         "admin/vision.html",
         page_title="Vision (CNN)",
         sidebar_title="Vision (CNN)",
+        **_module_action_context("vision"),
         summary_metrics=[
             {"label": "Style Test Acc.", "value": _safe_task_accuracy(metrics, "style")},
             {"label": "Condition Test Acc.", "value": _safe_task_accuracy(metrics, "condition")},
@@ -506,6 +498,7 @@ def nlp_studio():
         "admin/nlp_studio.html",
         page_title="NLP Studio",
         sidebar_title="NLP Studio",
+        **_module_action_context("nlp"),
         defaults=defaults,
         nlp_result=nlp_result,
         nlp_metrics=nlp_metrics,
@@ -525,6 +518,7 @@ def fusion_engine():
         "admin/fusion_engine.html",
         page_title="Fusion Engine",
         sidebar_title="Fusion Engine",
+        **_module_action_context("recommendations"),
         stats=[
             {"label": "Mean Structured", "value": fusion.get("mean_component_scores", {}).get("structured", 0.0)},
             {"label": "Mean Text", "value": fusion.get("mean_component_scores", {}).get("text", 0.0)},
@@ -575,6 +569,7 @@ def smart_matching():
         "admin/smart_matching.html",
         page_title="Smart Matching",
         sidebar_title="Smart Matching",
+        **_module_action_context("recommendations"),
         metrics=bundle.get("metrics", {}),
         fusion=bundle.get("fusion", {}),
         client_names=client_names,
@@ -625,6 +620,7 @@ def campaigns():
         "admin/campaigns.html",
         page_title="Campaigns",
         sidebar_title="Campaigns",
+        **_module_action_context("recommendations"),
         marketing=marketing,
         client_names=client_names,
         selected_client=selected_client,
@@ -658,6 +654,7 @@ def analytics():
         "admin/analytics.html",
         page_title="Analytics",
         sidebar_title="Analytics",
+        **_module_action_context("recommendations"),
         summary_cards=[
             {"label": "Clean Records", "value": int(scrape_summary.get("clean_records", 0))},
             {"label": "Style Accuracy", "value": _safe_task_accuracy(vision_metrics, "style")},

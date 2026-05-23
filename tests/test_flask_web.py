@@ -45,6 +45,10 @@ class FlaskWebTests(unittest.TestCase):
         response = self.client.get("/health")
         self.assertEqual(response.status_code, 200)
 
+    def test_database_health_route_loads(self) -> None:
+        response = self.client.get("/health/database")
+        self.assertIn(response.status_code, {200, 503})
+
     def test_admin_requires_authentication(self) -> None:
         response = self.client.get("/admin/overview")
         self.assertEqual(response.status_code, 302)

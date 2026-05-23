@@ -1,21 +1,22 @@
 {
   "mean_component_scores": {
-    "structured": 0.963,
-    "text": 0.2342,
-    "vision": 0.8742,
-    "overall": 0.7152
+    "structured": 0.9622,
+    "text": 0.2305,
+    "vision": 0.8771,
+    "overall": 0.7151
   },
   "mean_weights_used": {
-    "structured": 0.4797,
-    "text": 0.3152,
-    "vision": 0.2052
+    "structured": 0.4826,
+    "text": 0.3145,
+    "vision": 0.203
   },
-  "mean_fusion_reliability": 0.944,
+  "mean_fusion_reliability": 0.9389,
   "top_reason_counts": {
     "bedroom layout is a strong fit": 6,
     "it matches the preferred district": 6,
     "budget is closely aligned": 3,
-    "vision model supports the garden setting": 2,
-    "image analysis suggests good condition": 1
+    "vision model supports the garden setting": 1,
+    "vision model supports the modern style": 1,
+    "vision model supports the suburban setting": 1
   }
 }

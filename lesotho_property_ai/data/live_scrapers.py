@@ -14,6 +14,7 @@ from bs4 import BeautifulSoup
 
 from .cleaning import clean_property_dataframe, normalize_district
 from .scraper_adapter import ScraperAdapter
+from ..text_utils import strip_html_text
 
 
 AVAILABLE_LIVE_SOURCES = (
@@ -208,7 +209,7 @@ class WebScraperAdapter(ScraperAdapter):
 
     @staticmethod
     def clean_text(value: str | None) -> str:
-        return " ".join((value or "").split())
+        return strip_html_text(value)
 
     @staticmethod
     def decode_embedded_string(raw_value: str | None) -> str:

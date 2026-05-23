@@ -15,6 +15,7 @@ from lesotho_property_ai.web.shared_utils import (
     format_currency,
     load_csv,
     load_json,
+    plain_text_excerpt,
 )
 from lesotho_property_ai.marketing import MarketingAutomation
 
@@ -79,8 +80,11 @@ def serialize_property(row: pd.Series) -> dict[str, object]:
         bedrooms=bedrooms,
         property_type=property_type,
     )
-    district = str(row.get("district", row.get("district_canonical", "")) or "").strip()
-    description = str(row.get("description_en", row.get("enhanced_description", "")) or "").strip()
+    district = plain_text_excerpt(row.get("district", row.get("district_canonical", "")))
+    description = plain_text_excerpt(
+        row.get("description_en", row.get("enhanced_description", "")),
+        limit=180,
+    )
     amenities = coerce_text_list(row.get("amenities", []))
     listing_intent = str(row.get("listing_intent", "sale") or "sale").lower()
     ai_score = numeric_value(row.get("overall_score", row.get("match_score", row.get("ai_score", 0.0))), 0.0)
@@ -98,7 +102,7 @@ def serialize_property(row: pd.Series) -> dict[str, object]:
         "property_id": str(row.get("property_id", "")),
         "title": title,
         "district": district,
-        "locality": str(row.get("locality", "") or "").strip(),
+        "locality": plain_text_excerpt(row.get("locality", "")),
         "price": format_currency(row.get("price", 0)),
         "price_value": numeric_value(row.get("price", 0), 0.0),
         "bedrooms": bedrooms,
@@ -106,9 +110,9 @@ def serialize_property(row: pd.Series) -> dict[str, object]:
         "floor_area": floor_area,
         "listing_intent": listing_intent,
         "image_url": _property_image_url(row.get("image_paths", [])),
-        "source": str(row.get("source", "") or "").strip(),
+        "source": plain_text_excerpt(row.get("source", "")),
         "listing_url": str(row.get("listing_url", "") or "").strip(),
-        "description": description[:180] + ("..." if len(description) > 180 else ""),
+        "description": description,
         "amenities": amenities[:6],
         "badges": badges,
         "ai_score": round(ai_score * 100, 0) if ai_score else None,

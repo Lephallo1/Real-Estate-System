@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import logging
 from typing import Any, Callable, Mapping
 
 import bcrypt
 
 from .db import get_connection
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -108,14 +112,22 @@ def authenticate_user(
                 message="Login successful.",
             )
 
-        cursor.execute(
-            """
-            INSERT INTO login_audit (user_id, username_attempt, login_status, role_at_login, ip_address, user_agent)
-            VALUES (%s, %s, %s, %s, %s, %s)
-            """,
-            (user_id, login_identifier, login_status, role_at_login, ip_address, user_agent),
-        )
-        connection.commit()
+        try:
+            cursor.execute(
+                """
+                INSERT INTO login_audit (user_id, username_attempt, login_status, role_at_login, ip_address, user_agent)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                """,
+                (user_id, login_identifier, login_status, role_at_login, ip_address, user_agent),
+            )
+            connection.commit()
+        except Exception:
+            connection.rollback()
+            logger.warning(
+                "Login audit persistence failed for '%s'; returning auth result anyway.",
+                login_identifier,
+                exc_info=True,
+            )
         return result
     except Exception:
         connection.rollback()

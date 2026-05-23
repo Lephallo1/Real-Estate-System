@@ -33,21 +33,45 @@ class MatchingEngine:
 
         records: list[dict[str, object]] = []
         for client in clients.itertuples(index=False):
+            structured_fallback = self._use_structured_fallback(client)
             scored = []
             for property_row in properties.itertuples(index=False):
+                if structured_fallback and self._is_over_budget(client, property_row):
+                    continue
                 structured_details = self._structured_score(client, property_row)
-                text_details = self.text_processor.score_client_property(client, property_row)
                 vision_details = self._vision_score(client, property_row)
+                if structured_fallback:
+                    text_details = {
+                        "score": 0.0,
+                        "cosine": 0.0,
+                        "keyword_overlap": 0.0,
+                        "signal_alignment": 0.0,
+                        "shared_keywords": [],
+                    }
+                    text_reliability = 0.0
+                    structured = self._structured_fallback_score(
+                        client=client,
+                        property_row=property_row,
+                        structured_details=structured_details,
+                        vision_details=vision_details,
+                    )
+                    text = 0.0
+                    vision = float(vision_details["score"])
+                    weights_used = self._structured_fallback_weights(
+                        vision_reliability=float(vision_details["reliability"]),
+                    )
+                else:
+                    text_details = self.text_processor.score_client_property(client, property_row)
+                    structured = float(structured_details["score"])
+                    text = float(text_details["score"])
+                    vision = float(vision_details["score"])
+                    text_reliability = self._text_reliability(client, text_details)
+                    weights_used = self._effective_weights(
+                        structured_reliability=float(structured_details["reliability"]),
+                        text_reliability=text_reliability,
+                        vision_reliability=float(vision_details["reliability"]),
+                    )
 
-                structured = float(structured_details["score"])
-                text = float(text_details["score"])
-                vision = float(vision_details["score"])
-                text_reliability = self._text_reliability(client, text_details)
-                weights_used = self._effective_weights(
-                    structured_reliability=float(structured_details["reliability"]),
-                    text_reliability=text_reliability,
-                    vision_reliability=float(vision_details["reliability"]),
-                )
                 overall = (
                     weights_used["structured"] * structured
                     + weights_used["text"] * text
@@ -72,6 +96,7 @@ class MatchingEngine:
                     text_details=text_details,
                     vision_details=vision_details,
                     shared_keywords_humanized=shared_keywords_humanized,
+                    structured_fallback=structured_fallback,
                 )
                 explanation = self._build_explanation(
                     property_row=property_row,
@@ -80,6 +105,7 @@ class MatchingEngine:
                     vision=vision,
                     weights_used=weights_used,
                     reasons=reasons,
+                    structured_fallback=structured_fallback,
                 )
                 scored.append(
                     {
@@ -119,7 +145,82 @@ class MatchingEngine:
             for rank, item in enumerate(scored, start=1):
                 item["rank"] = rank
                 records.append(item)
+        if not records:
+            return pd.DataFrame(
+                columns=[
+                    "client_id",
+                    "client_name",
+                    "property_id",
+                    "property_title",
+                    "district",
+                    "price",
+                    "rank",
+                    "overall_score",
+                    "recommendation_reasons",
+                    "explanation",
+                ]
+            )
         return pd.DataFrame(records).sort_values(["client_id", "rank"]).reset_index(drop=True)
+
+    @staticmethod
+    def _use_structured_fallback(client) -> bool:
+        return not any(
+            [
+                str(getattr(client, "free_text_preference_en", "") or "").strip(),
+                str(getattr(client, "free_text_preference_st", "") or "").strip(),
+            ]
+        )
+
+    @staticmethod
+    def _is_over_budget(client, property_row) -> bool:
+        try:
+            budget_max = float(getattr(client, "budget_max", 0) or 0)
+            price = float(getattr(property_row, "price", 0) or 0)
+        except (TypeError, ValueError):
+            return False
+        return budget_max > 0 and price > budget_max
+
+    @staticmethod
+    def _structured_fallback_score(
+        *,
+        client,
+        property_row,
+        structured_details: dict[str, float],
+        vision_details: dict[str, float],
+    ) -> float:
+        amenities = {
+            str(item).strip().lower()
+            for item in MatchingEngine._coerce_iterable(getattr(property_row, "amenities", []))
+        }
+        amenity_support = 0.0
+        for preferred in ("parking", "garage", "garden", "yard", "road access"):
+            if preferred in amenities:
+                amenity_support = max(amenity_support, 0.8)
+                break
+
+        support_score = max(
+            amenity_support,
+            float(vision_details["environment_alignment"]),
+            float(vision_details["style_alignment"]) * 0.8,
+            float(vision_details["condition_alignment"]) * 0.75,
+        )
+        score = (
+            0.34 * float(structured_details["district_score"])
+            + 0.24 * float(structured_details["bedroom_score"])
+            + 0.20 * float(structured_details["type_score"])
+            + 0.14 * float(structured_details["budget_score"])
+            + 0.08 * support_score
+        )
+        return round(float(score), 4)
+
+    def _structured_fallback_weights(self, *, vision_reliability: float) -> dict[str, float]:
+        weighted = {
+            "structured": 0.84,
+            "text": 0.0,
+            "vision": 0.16 * max(vision_reliability, 0.35),
+        }
+        total = sum(weighted.values()) or 1.0
+        return {name: float(value / total) for name, value in weighted.items()}
 
     @staticmethod
     def _structured_score(client, property_row) -> dict[str, float]:
@@ -269,6 +370,7 @@ class MatchingEngine:
         text_details: dict[str, Any],
         vision_details: dict[str, float],
         shared_keywords_humanized: list[str],
+        structured_fallback: bool,
     ) -> list[str]:
         """Turn numeric fusion evidence into short human-friendly reasons."""
 
@@ -276,6 +378,8 @@ class MatchingEngine:
         preferred_types = {
             str(item).strip().lower() for item in self._coerce_iterable(getattr(client, "preferred_property_types", []))
         }
+        if structured_fallback:
+            candidates.append((1.0, "structured fallback respected the budget ceiling"))
         if structured_details["budget_score"] >= 0.82:
             candidates.append((structured_details["budget_score"], "budget is closely aligned"))
         if structured_details["district_score"] >= 0.95:
@@ -288,6 +392,8 @@ class MatchingEngine:
         if max(structured_details["bedroom_score"], vision_details["bedroom_alignment"]) >= 0.82:
             candidates.append((max(structured_details["bedroom_score"], vision_details["bedroom_alignment"]), "bedroom layout is a strong fit"))
         if (
+            not structured_fallback
+            and
             shared_keywords_humanized
             and (
                 float(text_details.get("keyword_overlap", 0.0)) >= 0.12
@@ -346,10 +452,18 @@ class MatchingEngine:
         vision: float,
         weights_used: dict[str, float],
         reasons: list[str],
+        structured_fallback: bool,
     ) -> str:
         reason_sentence = "; ".join(reasons)
         property_type = str(getattr(property_row, "predicted_property_type", getattr(property_row, "property_type", "house"))).strip().lower() or "house"
         district = str(getattr(property_row, "district", "")).strip() or "the target district"
+        if structured_fallback:
+            return (
+                f"Structured fallback mode was used for this {property_type} in {district} because the buyer left both "
+                f"description fields blank. Ranking prioritized the preferred district, bedroom fit, property type, and "
+                f"budget-safe inventory, with image evidence used only as light support. Reasons: {reason_sentence}. "
+                f"Component scores: structured {structured:.2f}, text {text:.2f}, vision {vision:.2f}."
+            )
         return (
             f"Strong {property_type} match in {district} because {reason_sentence}. "
             f"Fusion score used structured {weights_used['structured']:.2f}, text {weights_used['text']:.2f}, "

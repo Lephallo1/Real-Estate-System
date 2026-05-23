@@ -7,6 +7,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from lesotho_property_ai.text_utils import strip_html_text
+
 
 def load_json(path: Path) -> dict[str, object]:
     if not path.exists():
@@ -86,3 +88,10 @@ def format_currency(value) -> str:
     except (TypeError, ValueError):
         return "LSL -"
     return f"LSL {numeric:,}"
+
+
+def plain_text_excerpt(value, *, limit: int | None = None) -> str:
+    cleaned = strip_html_text(value)
+    if limit is None or len(cleaned) <= limit:
+        return cleaned
+    return cleaned[:limit].rstrip() + "..."

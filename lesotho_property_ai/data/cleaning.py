@@ -7,6 +7,8 @@ from typing import Iterable
 
 import pandas as pd
 
+from lesotho_property_ai.text_utils import strip_html_text
+
 
 DISTRICT_ALIASES = {
     "maseru": "Maseru",
@@ -94,14 +96,17 @@ def clean_property_dataframe(dataframe: pd.DataFrame) -> pd.DataFrame:
     df["price"] = _fill_missing_prices(df["price"])
     df["bedrooms"] = pd.to_numeric(df["bedrooms"], errors="coerce").fillna(0).astype(int)
     df["bathrooms"] = pd.to_numeric(df["bathrooms"], errors="coerce").fillna(0).astype(int)
-    df["description_en"] = df["description_en"].fillna("").map(str)
-    df["description_st"] = df["description_st"].fillna("").map(str)
+    df["title"] = df["title"].fillna("").map(strip_html_text)
+    if "location_text" in df:
+        df["location_text"] = df["location_text"].fillna("").map(strip_html_text)
+    df["description_en"] = df["description_en"].fillna("").map(strip_html_text)
+    df["description_st"] = df["description_st"].fillna("").map(strip_html_text)
     fallback = df["title"].fillna("").map(str) + " in " + df["district"]
     df.loc[df["description_en"].str.strip().eq(""), "description_en"] = fallback
     df.loc[df["description_st"].str.strip().eq(""), "description_st"] = fallback
     df["listing_url"] = df["listing_url"].fillna("").map(str)
     if "source" in df:
-        df["source"] = df["source"].fillna("unknown").map(str)
+        df["source"] = df["source"].fillna("unknown").map(strip_html_text)
     df = df.drop_duplicates(subset=["property_id"])
     df = df.drop_duplicates(subset=["title", "price", "district"])
     return df.reset_index(drop=True)

@@ -92,6 +92,11 @@
         });
       });
     });
+    {% if auto_refresh_seconds %}
+      window.setTimeout(function() {
+        window.location.reload();
+      }, {{ auto_refresh_seconds|int }} * 1000);
+    {% endif %}
   </script>
 </body>
 </html>

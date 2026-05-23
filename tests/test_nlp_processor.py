@@ -22,6 +22,15 @@ class MultilingualTextProcessorTests(unittest.TestCase):
         self.assertIn("secure", tokens)
         self.assertIn("garden", tokens)
 
+    def test_tokenize_normalizes_common_sesotho_spelling_variants(self) -> None:
+        processor = MultilingualTextProcessor()
+
+        tokens = processor.tokenize("Katlego o kgothaletsa tikoloho e kgutsitseng.")
+
+        self.assertIn("katleho", tokens)
+        self.assertIn("khothaletsa", tokens)
+        self.assertIn("quiet", tokens)
+
     def test_score_client_property_prefers_matching_family_house(self) -> None:
         properties = clean_property_dataframe(
             pd.DataFrame(

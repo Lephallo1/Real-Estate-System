@@ -3,15 +3,17 @@
 from __future__ import annotations
 
 from functools import wraps
+import logging
 from typing import Callable
 from urllib.parse import urlsplit
 
 from flask import Blueprint, flash, g, redirect, render_template, request, session, url_for
 
 from lesotho_property_ai.auth_service import authenticate_user, register_customer_user
-from lesotho_property_ai.db import DatabaseConfigError, resolve_database_settings
+from lesotho_property_ai.db import DatabaseConfigError, DatabaseConnectionError, resolve_database_settings
 
 auth_bp = Blueprint("auth", __name__)
+logger = logging.getLogger(__name__)
 
 
 def _safe_next_target(raw_target: str | None) -> str | None:
@@ -78,12 +80,29 @@ def login():
     if request.method == "POST" and setup_ok:
         identifier = request.form.get("email", "").strip()
         password = request.form.get("password", "")
-        result = authenticate_user(
-            username=identifier,
-            password=password,
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get("User-Agent"),
-        )
+        try:
+            result = authenticate_user(
+                username=identifier,
+                password=password,
+                ip_address=request.remote_addr,
+                user_agent=request.headers.get("User-Agent"),
+            )
+        except (DatabaseConfigError, DatabaseConnectionError) as exc:
+            logger.warning("Login failed because the database layer is unavailable.", exc_info=True)
+            flash(f"Sign-in is temporarily unavailable: {exc}", "danger")
+            result = None
+        except Exception:
+            logger.exception("Unexpected error while processing login for '%s'.", identifier)
+            flash("Sign-in could not complete right now. Please try again shortly.", "danger")
+            result = None
+        if result is None:
+            return render_template(
+                "auth/login.html",
+                page_title="Secure Access",
+                setup_ok=setup_ok,
+                setup_message=setup_message,
+                next_target=next_target,
+            )
         if result.success and result.user:
             session.clear()
             session.update(
@@ -128,12 +147,28 @@ def register():
         if password != confirm_password:
             flash("Passwords do not match.", "danger")
         else:
-            result = register_customer_user(
-                full_name=full_name,
-                email=email,
-                address=address,
-                password=password,
-            )
+            try:
+                result = register_customer_user(
+                    full_name=full_name,
+                    email=email,
+                    address=address,
+                    password=password,
+                )
+            except (DatabaseConfigError, DatabaseConnectionError) as exc:
+                logger.warning("Customer registration failed because the database layer is unavailable.", exc_info=True)
+                flash(f"Registration is temporarily unavailable: {exc}", "danger")
+                result = None
+            except Exception:
+                logger.exception("Unexpected error while processing registration for '%s'.", email)
+                flash("Registration could not complete right now. Please try again shortly.", "danger")
+                result = None
+            if result is None:
+                return render_template(
+                    "auth/register.html",
+                    page_title="Create Customer Account",
+                    setup_ok=setup_ok,
+                    setup_message=setup_message,
+                )
             if result.success:
                 flash("Account created successfully. Please sign in.", "success")
                 return redirect(url_for("auth.login", email=email.strip().lower()))

@@ -9,6 +9,8 @@
   </div>
 </section>
 
+{% include "partials/admin_action_panel.html" %}
+
 <section class="stats-grid">
   <article class="stat-card"><div class="stat-label">Properties Considered</div><div class="stat-value">{{ recommendation.get('properties_considered', 0) }}</div></article>
   <article class="stat-card"><div class="stat-label">Client Profiles</div><div class="stat-value">{{ recommendation.get('clients_profiled', 0) }}</div></article>

@@ -46,6 +46,13 @@ class _FakeConnection:
         self.closed = True
 
 
+class _FailingAuditCursor(_FakeCursor):
+    def execute(self, query, params=None):
+        if "INSERT INTO login_audit" in query:
+            raise RuntimeError("audit unavailable")
+        super().execute(query, params)
+
+
 class AuthServiceTests(unittest.TestCase):
     def test_bcrypt_hash_round_trip(self) -> None:
         password_hash = auth_service.hash_password("admin123")
@@ -96,6 +103,31 @@ class AuthServiceTests(unittest.TestCase):
         self.assertEqual(result.message, "Invalid username or password.")
         self.assertTrue(connection.committed)
         self.assertEqual(len(cursor.executed), 2)
+
+    def test_authenticate_user_success_survives_audit_failure(self) -> None:
+        password_hash = auth_service.hash_password("admin123")
+        cursor = _FailingAuditCursor(
+            fetchone_result={
+                "id": 1,
+                "username": "admin_demo",
+                "email": "admin@lesothohome.ai",
+                "full_name": "Admin Demo",
+                "password_hash": password_hash,
+                "role": "admin",
+            }
+        )
+        connection = _FakeConnection(cursor)
+
+        result = auth_service.authenticate_user(
+            "admin_demo",
+            "admin123",
+            connection_factory=lambda: connection,
+        )
+
+        self.assertTrue(result.success)
+        self.assertEqual(result.user.role, "admin")
+        self.assertTrue(connection.rolled_back)
+        self.assertFalse(connection.committed)
 
     def test_record_customer_search_returns_insert_id(self) -> None:
         cursor = _FakeCursor(lastrowid=42)

@@ -392,6 +392,59 @@ button,input,select,textarea{font:inherit}
   box-shadow:0 0 0 6px rgba(255,183,3,.12);
 }
 
+.job-panel{margin-bottom:22px}
+.job-actions{display:flex;align-items:center;gap:10px}
+.job-status-grid{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:12px;
+}
+.job-status-grid div{
+  padding:14px;
+  border-radius:16px;
+  background:#1c2540;
+  border:1px solid rgba(255,255,255,.06);
+}
+.job-status-grid span{
+  display:block;
+  color:#96a4c8;
+  font-size:12px;
+  text-transform:uppercase;
+  letter-spacing:.8px;
+  margin-bottom:8px;
+}
+.status-pill{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-height:32px;
+  padding:6px 12px;
+  border-radius:999px;
+  border:1px solid var(--border);
+  background:#1d2640;
+  color:#dbe4ff;
+  font-size:12px;
+  font-weight:800;
+}
+.status-pill-green{background:rgba(21,196,126,.12);border-color:rgba(21,196,126,.35);color:#9ef0cb}
+.status-pill-blue{background:rgba(61,139,255,.12);border-color:rgba(61,139,255,.35);color:#b8d7ff}
+.status-pill-danger{background:rgba(255,93,115,.12);border-color:rgba(255,93,115,.35);color:#ffc0c9}
+.status-pill-orange{background:rgba(255,122,26,.12);border-color:rgba(255,122,26,.35);color:#ffd2ae}
+.status-pill-neutral{background:#1d2640;border-color:var(--border);color:#dbe4ff}
+.log-block{
+  margin:0;
+  white-space:pre-wrap;
+  word-break:break-word;
+  background:#11182a;
+  border:1px solid var(--border);
+  padding:12px 14px;
+  border-radius:14px;
+  color:#d8e0ff;
+  font-family:Consolas,"Courier New",monospace;
+  font-size:13px;
+  line-height:1.5;
+}
+
 code{
   display:block;
   white-space:pre-wrap;
@@ -414,6 +467,7 @@ code{
   .page-content{padding:22px 20px 28px}
   .panel-grid.two-up,.search-form-grid,.detail-layout,.property-grid,.property-grid.compact{grid-template-columns:1fr}
   .hero-panel{flex-direction:column;align-items:flex-start}
+  .job-status-grid{grid-template-columns:1fr}
 }
 
 @media (max-width:640px){

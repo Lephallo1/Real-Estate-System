@@ -69,6 +69,61 @@ class MarketingAutomationTests(unittest.TestCase):
         self.assertIn("Reply to this message", first_campaign["call_to_action"])
         self.assertGreater(first_campaign["estimated_engagement_score"], first_campaign["match_score"])
 
+    def test_generate_keeps_sesotho_output_monolingual(self) -> None:
+        matches = pd.DataFrame(
+            [
+                {
+                    "client_id": "client-2",
+                    "client_name": "Teboho",
+                    "property_id": "property-2",
+                    "property_title": "3-Bedroom House",
+                    "district": "Maseru",
+                    "recommendation_reasons": [
+                        "budget is closely aligned",
+                        "it matches the preferred district",
+                    ],
+                    "overall_score": 0.712,
+                    "rank": 1,
+                }
+            ]
+        )
+        properties = pd.DataFrame(
+            [
+                {
+                    "property_id": "property-2",
+                    "title": "3 bedroom house in Maseru",
+                    "district": "Maseru",
+                    "locality": "Ha Abia",
+                    "bedrooms": 3,
+                    "price": 720000,
+                    "predicted_environment": "Suburban",
+                    "predicted_condition": "Good",
+                    "amenities": ["parking", "garden"],
+                }
+            ]
+        )
+        clients = pd.DataFrame(
+            [
+                {
+                    "client_id": "client-2",
+                    "name": "Teboho",
+                    "preferred_language": "st",
+                    "preferred_channels": ["social"],
+                    "free_text_preference_en": "",
+                    "free_text_preference_st": "Ke batla parking le serapa.",
+                }
+            ]
+        )
+
+        campaigns = MarketingAutomation().generate(matches, properties, clients)
+        row = campaigns.iloc[0]
+
+        self.assertIn("Tekanyo ya ho tshwana", row["message"])
+        self.assertNotIn("Match score", row["message"])
+        self.assertNotIn("Reply", row["call_to_action"])
+        self.assertNotIn("viewing details", row["call_to_action"])
+        self.assertNotIn(" and ", row["message"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,0 +1,51 @@
+{% if module_action %}
+  <section class="panel-card job-panel">
+    <div class="panel-head">
+      <div>
+        <h2>{{ module_action.label }}</h2>
+        <p class="panel-copy">{{ module_action.description }}</p>
+      </div>
+      <div class="job-actions">
+        {% if module_action.can_run_here %}
+          <form method="post" action="{{ url_for('admin.run_action', action_key=module_action.action_key) }}">
+            <button type="submit" class="primary-btn small" {% if module_action.running %}disabled{% endif %}>
+              {% if module_action.running %}Running…{% else %}Run backend task{% endif %}
+            </button>
+          </form>
+        {% else %}
+          <div class="status-pill status-pill-{{ module_action.status_tone }}">Local only</div>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if not module_action.can_run_here %}
+      <p class="panel-copy">{{ module_action.availability_message }}</p>
+    {% endif %}
+
+    <div class="job-status-grid">
+      <div><span>Status</span><strong class="status-pill status-pill-{{ module_action.status_tone }}">{{ module_action.status|title }}</strong></div>
+      <div><span>Updated</span><strong>{{ module_action.updated_at or 'Not started yet' }}</strong></div>
+      <div><span>Started</span><strong>{{ module_action.started_at or '—' }}</strong></div>
+      <div><span>Finished</span><strong>{{ module_action.finished_at or '—' }}</strong></div>
+    </div>
+
+    <p class="panel-copy top-gap">{{ module_action.message }}</p>
+    {% if module_action.running %}
+      <p class="panel-copy">This page refreshes automatically while the job is running.</p>
+    {% endif %}
+
+    <details class="accordion">
+      <summary>Latest stdout</summary>
+      <div class="accordion-body">
+        <pre class="log-block">{{ module_action.stdout or 'No stdout captured yet.' }}</pre>
+      </div>
+    </details>
+
+    <details class="accordion">
+      <summary>Latest stderr</summary>
+      <div class="accordion-body">
+        <pre class="log-block">{{ module_action.stderr or 'No stderr captured.' }}</pre>
+      </div>
+    </details>
+  </section>
+{% endif %}

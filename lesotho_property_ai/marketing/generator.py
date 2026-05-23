@@ -102,13 +102,14 @@ class MarketingAutomation:
         reason_sentence_en = MarketingAutomation._reason_sentence_english(recommendation_reasons)
         highlights_en = MarketingAutomation._highlights_english(property_row, client)
         highlights_st = MarketingAutomation._highlights_sesotho(property_row, client)
+        reason_sentence_st = MarketingAutomation._reason_sentence_sesotho(recommendation_reasons)
 
         if language == "st":
             return (
                 f"Lumela {client['name']}, re fumane {title} ho {place_text} ka theko ya {price_text}. "
                 f"E na le dikamore tse {int(property_row['bedrooms'])}, e boemong ba {MarketingAutomation._condition_st(condition)}, "
-                f"mme e le {MarketingAutomation._environment_st(environment)}. {highlights_st} "
-                f"Match score ya yona ke {match.overall_score:.2f}. Re ka o romella lintlha tse ding kapa ra hlophisa viewing."
+                f"mme e fumaneha {MarketingAutomation._environment_st(environment)}. {reason_sentence_st}{highlights_st} "
+                f"Tekanyo ya ho tshwana ke {match.overall_score:.2f}. Re ka o romella dintlha tse ding kapa ra hlophisa ketelo."
             )
         return (
             f"Hi {client['name']}, we found a strong match for you: {title} in {place_text} priced at {price_text}. "
@@ -176,16 +177,16 @@ class MarketingAutomation:
         district = str(property_row.get("district", "") or "").strip()
         bedrooms = int(float(property_row.get("bedrooms", 0) or 0))
         if language == "st":
-            return f"{display_title}, dikamore tse {bedrooms}, {district}, theko {price_text}."
+            return f"{display_title}, dikamore tse {bedrooms}, {district}, theko ya {price_text}."
         return f"{display_title} with {bedrooms} bedrooms in {district}, priced at {price_text}."
 
     @staticmethod
     def _build_call_to_action(language: str, channel: str) -> str:
         if language == "st":
             return (
-                "Araba molaetsa ona bakeng sa viewing details."
+                "Araba molaetsa ona bakeng sa dintlha tsa ketelo."
                 if channel == "email"
-                else "Re romelle molaetsa haeba o batla viewing details."
+                else "Re romelle molaetsa haeba o batla dintlha tsa ketelo."
             )
         return (
             "Reply to this message for viewing details."
@@ -303,7 +304,7 @@ class MarketingAutomation:
             for amenity in amenities[:2]:
                 preferred_highlights.append(highlight_map.get(amenity, amenity))
         if preferred_highlights:
-            return f"Highlights include {MarketingAutomation._join_phrases(preferred_highlights)}."
+            return f"Highlights include {MarketingAutomation._join_phrases_english(preferred_highlights)}."
         return "It remains one of the cleaner house options in the current inventory."
 
     @staticmethod
@@ -319,11 +320,11 @@ class MarketingAutomation:
         }
         highlights = [translated[item] for item in amenities if item in translated][:2]
         if highlights:
-            return f"E boetse e fana ka {MarketingAutomation._join_phrases(highlights)}."
+            return f"E boetse e fana ka {MarketingAutomation._join_phrases_sesotho(highlights)}."
         return "Le yona ke nngwe ya dikgetho tse hlwekileng tseo re nang le tsona hona jwale."
 
     @staticmethod
-    def _join_phrases(values: list[str]) -> str:
+    def _join_phrases_english(values: list[str]) -> str:
         cleaned = [str(value).strip() for value in values if str(value).strip()]
         if not cleaned:
             return ""
@@ -334,8 +335,55 @@ class MarketingAutomation:
         return ", ".join(cleaned[:-1]) + f", and {cleaned[-1]}"
 
     @staticmethod
+    def _join_phrases_sesotho(values: list[str]) -> str:
+        cleaned = [str(value).strip() for value in values if str(value).strip()]
+        if not cleaned:
+            return ""
+        if len(cleaned) == 1:
+            return cleaned[0]
+        if len(cleaned) == 2:
+            return f"{cleaned[0]} le {cleaned[1]}"
+        return ", ".join(cleaned[:-1]) + f", le {cleaned[-1]}"
+
+    @staticmethod
     def _reason_sentence_english(reasons: list[str]) -> str:
         cleaned = [str(reason).strip().rstrip(".") for reason in reasons if str(reason).strip()]
         if not cleaned:
             return ""
-        return f"It stands out because {MarketingAutomation._join_phrases(cleaned[:2])}. "
+        return f"It stands out because {MarketingAutomation._join_phrases_english(cleaned[:2])}. "
+
+    @staticmethod
+    def _reason_sentence_sesotho(reasons: list[str]) -> str:
+        translated: list[str] = []
+        for reason in reasons:
+            cleaned = str(reason).strip().rstrip(".")
+            if not cleaned:
+                continue
+            translated.append(MarketingAutomation._translate_reason_to_sesotho(cleaned))
+        if not translated:
+            return ""
+        return f"E hlahella hobane {MarketingAutomation._join_phrases_sesotho(translated[:2])}. "
+
+    @staticmethod
+    def _translate_reason_to_sesotho(reason: str) -> str:
+        lowered = reason.lower()
+        if "budget ceiling" in lowered:
+            return "mokgwa wa kgetho o hlomphile moedi wa tekanyetso ya hao"
+        if "budget is closely aligned" in lowered:
+            return "theko e atamela tekanyetso ya hao"
+        if "preferred district" in lowered:
+            return "sebaka sena se dumellana le setereke seo o se ratang"
+        if "property type matches" in lowered:
+            return "mofuta wa thepa o dumellana le khetho ya hao"
+        if "bedroom layout" in lowered:
+            return "palo ya dikamore e dumellana hantle le seo o se batlang"
+        if "text preferences align on" in lowered:
+            detail = reason.split("on", 1)[-1].strip() if "on" in reason else reason
+            return f"dikgetho tsa hao tsa mongolo di tsamaisana le {detail}"
+        if "vision model supports the" in lowered:
+            detail = reason.split("supports the", 1)[-1].strip() if "supports the" in lowered else reason
+            return f"tlhahlobo ya ditshwantsho e tshehetsa {detail}"
+        if "image analysis suggests" in lowered:
+            detail = reason.split("suggests", 1)[-1].strip() if "suggests" in lowered else reason
+            return f"tlhahlobo ya ditshwantsho e bontsha boemo bo {detail}"
+        return reason

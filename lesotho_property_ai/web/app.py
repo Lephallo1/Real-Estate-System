@@ -7,6 +7,8 @@ from pathlib import Path
 
 from flask import Flask, abort, jsonify, redirect, send_file, session, url_for
 
+from lesotho_property_ai.db import DatabaseConfigError, DatabaseConnectionError, get_connection
+
 from .admin import admin_bp
 from .auth import auth_bp
 from .customer import customer_bp
@@ -51,6 +53,30 @@ def create_app() -> Flask:
     @app.get("/health")
     def health():
         return jsonify({"status": "ok"}), 200
+
+    @app.get("/health/database")
+    def health_database():
+        connection = None
+        cursor = None
+        try:
+            connection = get_connection()
+            cursor = connection.cursor()
+            cursor.execute("SELECT 1")
+            return jsonify({"status": "ok", "database": "reachable"}), 200
+        except (DatabaseConfigError, DatabaseConnectionError) as exc:
+            app.logger.warning("Database health check failed.", exc_info=True)
+            return jsonify({"status": "error", "database": "unavailable", "detail": str(exc)}), 503
+        finally:
+            if cursor is not None:
+                try:
+                    cursor.close()
+                except Exception:
+                    pass
+            if connection is not None:
+                try:
+                    connection.close()
+                except Exception:
+                    pass
 
     @app.get("/media/generated-images/<path:relpath>")
     def media_image(relpath: str):

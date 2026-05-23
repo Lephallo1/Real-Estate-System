@@ -3,6 +3,7 @@ __pycache__/
 
 generated_test_runs/
 generated/logs/
+generated/artifacts/admin_jobs/
 
 # Simulated scratch images can be regenerated and are not part of the real-only workflow.
 generated/images/LS-PROP-*/

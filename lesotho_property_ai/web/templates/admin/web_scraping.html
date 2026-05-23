@@ -6,12 +6,9 @@
     <div class="eyebrow">Web scraping engine</div>
     <p class="hero-copy">Focus on the scraping evaluation first, then open the supporting source and sample views only when needed. The live scraper action remains available from this page.</p>
   </div>
-  <div class="action-strip">
-    <form method="post" action="{{ url_for('admin.run_action', action_key='scraper') }}">
-      <button type="submit" class="primary-btn small">Run Scraping Job</button>
-    </form>
-  </div>
 </section>
+
+{% include "partials/admin_action_panel.html" %}
 
 <section class="stats-grid">
   {% for stat in summary_cards %}

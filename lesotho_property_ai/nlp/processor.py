@@ -143,6 +143,11 @@ PHRASE_NORMALIZATIONS: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"\broad\s+access\b", re.I), " road_access "),
 )
 
+SESOTHO_VARIANT_NORMALIZATIONS: tuple[tuple[str, str], ...] = (
+    ("katlego", "katleho"),
+    ("kgothaletsa", "khothaletsa"),
+)
+
 
 @dataclass(slots=True)
 class TextProcessingResult:
@@ -518,6 +523,9 @@ class MultilingualTextProcessor:
         normalized = str(text or "").lower()
         normalized = normalized.replace("mohale's hoek", "mohaleshoek")
         normalized = normalized.replace("mohale s hoek", "mohaleshoek")
+        for source, replacement in SESOTHO_VARIANT_NORMALIZATIONS:
+            normalized = normalized.replace(source, replacement)
+        normalized = re.sub(r"\bkg(?=[a-z])", "kh", normalized)
         for pattern, replacement in PHRASE_NORMALIZATIONS:
             normalized = pattern.sub(replacement, normalized)
         normalized = normalized.replace("-", " ")

@@ -212,6 +212,93 @@ class HouseRecommendationPipelineTests(unittest.TestCase):
         )
         self.assertTrue(Path(result.artifact_paths["matches_csv"]).exists())
 
+    def test_blank_text_preferences_exclude_over_budget_homes_and_prioritize_in_range(self) -> None:
+        case_dir = self._workspace_case_dir()
+        image_dir = case_dir / "images"
+        image_dir.mkdir(parents=True, exist_ok=True)
+
+        rows: list[dict[str, object]] = []
+        samples = [
+            ("fit-house", "Maseru", 3, 650000, (120, 100, 80)),
+            ("cheap-house", "Maseru", 3, 250000, (100, 120, 80)),
+            ("expensive-house", "Maseru", 3, 1200000, (80, 100, 140)),
+        ]
+
+        for property_id, district, bedrooms, price, color in samples:
+            property_dir = image_dir / property_id
+            property_dir.mkdir(parents=True, exist_ok=True)
+            image_path = property_dir / "front.png"
+            Image.new("RGB", (64, 64), color=color).save(image_path)
+            rows.append(
+                {
+                    "property_id": property_id,
+                    "source": "unit-test",
+                    "title": f"{bedrooms} bedroom house in {district}",
+                    "description_en": f"Family house in {district} with parking and yard.",
+                    "description_st": f"Ntlo ya lelapa {district} e nang le parking le lebala.",
+                    "price": price,
+                    "currency": "LSL",
+                    "district": district,
+                    "location_text": district,
+                    "property_type": "House",
+                    "bedrooms": bedrooms,
+                    "bathrooms": 2,
+                    "image_paths": [str(image_path)],
+                    "listing_url": f"https://example.com/{property_id}",
+                    "condition": "Good",
+                    "style": "Modern",
+                    "environment": "Suburban",
+                    "amenities": ["parking", "yard"],
+                    "listing_intent": "sale",
+                    "country": "Lesotho",
+                    "district_canonical": district,
+                    "cnn_property_type": "House",
+                    "cnn_bedroom_class": str(bedrooms),
+                    "split": "train",
+                    "cnn_exclusion_reasons": "",
+                    "is_residential_curated": True,
+                    "is_cnn_candidate": True,
+                }
+            )
+
+        input_csv = case_dir / "properties_residential_cnn_candidates.csv"
+        save_dataframe(pd.DataFrame(rows), input_csv, json_columns=("image_paths", "amenities"))
+
+        clients = pd.DataFrame(
+            [
+                {
+                    "client_id": "USER-2",
+                    "name": "Budget Buyer",
+                    "budget_min": 500000,
+                    "budget_max": 800000,
+                    "preferred_districts": ["Maseru"],
+                    "preferred_property_types": ["House"],
+                    "preferred_bedrooms": 3,
+                    "free_text_preference_en": "",
+                    "free_text_preference_st": "",
+                    "preferred_language": "en",
+                    "preferred_channels": ["dashboard"],
+                }
+            ]
+        )
+
+        result = run_house_recommendation_for_clients(
+            base_dir=case_dir,
+            clients=clients,
+            input_csv=input_csv,
+            top_n=3,
+            listing_intent="sale",
+            strict_house_only=True,
+            artifact_prefix="house_user_input",
+        )
+
+        self.assertTrue((result.matches["price"] <= 800000).all())
+        self.assertEqual(result.matches.iloc[0]["price"], 650000)
+        self.assertIn(
+            "structured fallback respected the budget ceiling",
+            result.matches.iloc[0]["recommendation_reasons"],
+        )
+
     def test_house_recommendation_filters_noisy_rows_and_normalizes_titles(self) -> None:
         case_dir = self._workspace_case_dir()
         image_dir = case_dir / "images"

@@ -1,32 +1,32 @@
 {
   "vision": {
     "mode": 2.0,
-    "property_type_accuracy": 0.647,
-    "condition_accuracy": 0.917,
-    "bedroom_mae": 0.387,
-    "bedroom_property_accuracy": 0.5,
+    "property_type_accuracy": 0.588,
+    "condition_accuracy": 0.833,
+    "bedroom_mae": 0.441,
+    "bedroom_property_accuracy": 0.333,
     "source": "saved_house_training_predictions_with_aux_property_type_and_bedroom",
     "covered_properties": 93
   },
   "nlp": {
-    "vocabulary_size": 762,
+    "vocabulary_size": 760,
     "avg_property_keyword_count": 10.0,
     "query_success_rate": 1.0,
     "query_cases": [
       {
         "query_name": "English family query",
         "expected_district": "Maseru",
-        "top_property_id": "propmarket-TAauZyw_XaAMTcDGOCVox",
+        "top_property_id": "propmarket-l5AZS5MGZGzwtbKIzLZv0",
         "top_district": "Maseru",
-        "top_score": 0.3032,
+        "top_score": 0.3031,
         "success": true
       },
       {
         "query_name": "Sesotho family query",
         "expected_district": "Maseru",
-        "top_property_id": "propmarket-_7r_OHVPYyShfQ4a1C5iR",
+        "top_property_id": "propmarket-KMeb_ngqmeHEhth1Ue1eQ",
         "top_district": "Maseru",
-        "top_score": 0.3067,
+        "top_score": 0.315,
         "success": true
       },
       {
@@ -34,13 +34,13 @@
         "expected_district": "Berea",
         "top_property_id": "propmarket-k8AX2jh1R695RF-5UBAIV",
         "top_district": "Berea",
-        "top_score": 0.5917,
+        "top_score": 0.586,
         "success": true
       }
     ],
-    "english_top_property_id": "propmarket-TAauZyw_XaAMTcDGOCVox",
+    "english_top_property_id": "propmarket-l5AZS5MGZGzwtbKIzLZv0",
     "english_top_district": "Maseru",
-    "sesotho_top_property_id": "propmarket-_7r_OHVPYyShfQ4a1C5iR",
+    "sesotho_top_property_id": "propmarket-KMeb_ngqmeHEhth1Ue1eQ",
     "sesotho_top_district": "Maseru",
     "english_query_matches_maseru": true,
     "sesotho_query_matches_maseru": true
@@ -51,7 +51,7 @@
     "matches_generated": 18,
     "campaigns_generated": 6,
     "top_n": 3,
-    "mean_top_match_score": 0.723,
+    "mean_top_match_score": 0.7241,
     "listing_intent": "sale",
     "strict_house_only": true,
     "excluded_demo_noise_rows": 5,
@@ -65,23 +65,24 @@
   },
   "fusion": {
     "mean_component_scores": {
-      "structured": 0.963,
-      "text": 0.2342,
-      "vision": 0.8742,
-      "overall": 0.7152
+      "structured": 0.9622,
+      "text": 0.2305,
+      "vision": 0.8771,
+      "overall": 0.7151
     },
     "mean_weights_used": {
-      "structured": 0.4797,
-      "text": 0.3152,
-      "vision": 0.2052
+      "structured": 0.4826,
+      "text": 0.3145,
+      "vision": 0.203
     },
-    "mean_fusion_reliability": 0.944,
+    "mean_fusion_reliability": 0.9389,
     "top_reason_counts": {
       "bedroom layout is a strong fit": 6,
       "it matches the preferred district": 6,
       "budget is closely aligned": 3,
-      "vision model supports the garden setting": 2,
-      "image analysis suggests good condition": 1
+      "vision model supports the garden setting": 1,
+      "vision model supports the modern style": 1,
+      "vision model supports the suburban setting": 1
     }
   },
   "marketing": {
@@ -98,7 +99,7 @@
       "email_property_spotlight": 4,
       "social_property_spotlight": 2
     },
-    "mean_match_score": 0.723,
-    "mean_estimated_engagement_score": 0.8463
+    "mean_match_score": 0.7241,
+    "mean_estimated_engagement_score": 0.8474
   }
 }
