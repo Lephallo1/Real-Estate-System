@@ -87,6 +87,10 @@ def _artifact_root() -> Path:
     return PROJECT_ROOT / "generated" / "artifacts"
 
 
+def _scope_bank_cache_path(name: str) -> Path:
+    return resolve_artifact_path(_artifact_root(), f"{name}_scope_bank.npz")
+
+
 def _resolve_generated_image_path(value: object) -> Path | None:
     raw = str(value).strip()
     if not raw:
@@ -137,6 +141,15 @@ def _scope_descriptor_for_path(image_path: Path) -> np.ndarray:
 
 @lru_cache(maxsize=1)
 def _residential_scope_bank() -> np.ndarray:
+    cache_path = _scope_bank_cache_path("residential")
+    if cache_path.exists():
+        try:
+            with np.load(cache_path) as payload:
+                descriptors = payload["descriptors"]
+            if descriptors.size:
+                return descriptors.astype(np.float32)
+        except Exception:
+            pass
     descriptors: list[np.ndarray] = []
     for filename in ("properties_residential_cnn_images.csv", "properties_house_reviewed_images.csv"):
         csv_path = resolve_artifact_path(_artifact_root(), filename)
@@ -159,11 +172,26 @@ def _residential_scope_bank() -> np.ndarray:
                 continue
     if not descriptors:
         return np.empty((0, 0), dtype=np.float32)
-    return np.vstack(descriptors)
+    bank = np.vstack(descriptors).astype(np.float32)
+    try:
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        np.savez_compressed(cache_path, descriptors=bank)
+    except Exception:
+        pass
+    return bank
 
 
 @lru_cache(maxsize=1)
 def _house_scope_bank() -> np.ndarray:
+    cache_path = _scope_bank_cache_path("house")
+    if cache_path.exists():
+        try:
+            with np.load(cache_path) as payload:
+                descriptors = payload["descriptors"]
+            if descriptors.size:
+                return descriptors.astype(np.float32)
+        except Exception:
+            pass
     csv_path = resolve_artifact_path(_artifact_root(), "properties_house_reviewed_images.csv")
     if not csv_path.exists():
         return np.empty((0, 0), dtype=np.float32)
@@ -179,7 +207,13 @@ def _house_scope_bank() -> np.ndarray:
             continue
     if not descriptors:
         return np.empty((0, 0), dtype=np.float32)
-    return np.vstack(descriptors)
+    bank = np.vstack(descriptors).astype(np.float32)
+    try:
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        np.savez_compressed(cache_path, descriptors=bank)
+    except Exception:
+        pass
+    return bank
 
 
 @lru_cache(maxsize=4)
