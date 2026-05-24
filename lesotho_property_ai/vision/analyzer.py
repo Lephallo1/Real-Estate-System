@@ -636,6 +636,7 @@ class PropertyVisionAnalyzer:
         is_property = self._coerce_bool(result.get("is_property"))
         confidence = self._clamp_confidence(result.get("confidence"), default=0.82)
         source_label = str(result.get("analysis_source_label", "AI") or "AI").strip()
+        display_source_label = "Our vision model"
         source_name = str(result.get("analysis_source", "llm") or "llm").strip().lower()
         condition = self._normalize_label(
             result.get("condition"),
@@ -660,9 +661,9 @@ class PropertyVisionAnalyzer:
                 scene_description = "The image does not appear to show a supported residential property scene."
         supported = is_property and property_type in SUPPORTED_RESIDENTIAL_TYPES
         scene_hint = (
-            f"{source_label} detected a {property_type.lower()} scene"
+            f"{display_source_label} detected a {property_type.lower()} scene"
             if supported
-            else f"{source_label} detected a non-property scene"
+            else f"{display_source_label} detected a non-property scene"
         )
         return {
             "supported": supported,
@@ -681,6 +682,7 @@ class PropertyVisionAnalyzer:
             "locality": "",
             "analysis_source": source_name,
             "analysis_source_label": source_label,
+            "analysis_display_label": display_source_label,
         }
 
     def analyze_uploaded_images(self, image_paths: list[str]) -> dict[str, Any]:
@@ -716,11 +718,11 @@ class PropertyVisionAnalyzer:
             )
 
         supported_images = [row for row in per_image if row["scope"]["supported"]]
-        llm_source_label = next(
+        llm_display_label = next(
             (
-                str(row["scope"].get("analysis_source_label", "")).strip()
+                str(row["scope"].get("analysis_display_label", "")).strip()
                 for row in per_image
-                if str(row["scope"].get("analysis_source_label", "")).strip()
+                if str(row["scope"].get("analysis_display_label", "")).strip()
             ),
             "",
         )
@@ -812,7 +814,7 @@ class PropertyVisionAnalyzer:
                 "predicted_bedrooms": "Not available",
                 "confidence": mean_confidence,
                 "analysis_message": (
-                    f"{llm_source_label or 'The hosted AI'} analysed the upload as a residential property image, but NLP handoff remains "
+                    f"{llm_display_label or 'Our vision model'} analysed the upload as a residential property image, but NLP handoff remains "
                     "limited to supported house-image results."
                     if used_llm
                     else "The upload looks like a residential property image, but NLP handoff remains "
@@ -905,7 +907,7 @@ class PropertyVisionAnalyzer:
             "predicted_bedrooms": predicted_bedrooms,
             "confidence": combined_confidence,
             "analysis_message": (
-                f"{llm_source_label or 'The hosted AI'} analysed the uploaded image as a house scene and supplied the displayed "
+                f"{llm_display_label or 'Our vision model'} analysed the uploaded image as a house scene and supplied the displayed "
                 "property attributes."
                 if used_llm
                 else "The uploaded image matched the reviewed house-image bank strongly enough to "

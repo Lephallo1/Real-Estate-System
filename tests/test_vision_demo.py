@@ -104,6 +104,10 @@ class UploadedVisionDemoTests(unittest.TestCase):
         self.assertEqual(result["predicted_style"], "Modern")
         self.assertEqual(result["predicted_environment"], "Suburban")
         self.assertEqual(result["scene_description"], "A modern single-storey house with a paved yard is visible.")
+        self.assertEqual(result["scene_hint"], "Our vision model detected a house scene")
+        self.assertIn("Our vision model analysed", result["analysis_message"])
+        self.assertNotIn("Gemini", result["analysis_message"])
+        self.assertNotIn("Gemini", result["scene_hint"])
 
     def test_llm_non_property_result_is_used_when_available(self) -> None:
         analyzer = PropertyVisionAnalyzer()
@@ -130,6 +134,8 @@ class UploadedVisionDemoTests(unittest.TestCase):
         self.assertFalse(result["allow_nlp_send"])
         self.assertEqual(result["predicted_property_type"], "Not a property")
         self.assertEqual(result["scene_description"], "The image shows a silver hatchback parked indoors.")
+        self.assertEqual(result["scene_hint"], "Our vision model detected a non-property scene")
+        self.assertNotIn("Gemini", result["scene_hint"])
 
 
 class AdminPresentationFilterTests(unittest.TestCase):
