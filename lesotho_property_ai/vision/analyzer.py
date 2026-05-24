@@ -46,6 +46,15 @@ NON_PROPERTY_HINT_KEYWORDS = (
     "television",
     "web site",
 )
+UPLOAD_SCOPE_FIELDS = (
+    "cnn_property_type",
+    "cnn_bedroom_class",
+    "condition",
+    "style",
+    "environment",
+    "district_canonical",
+    "locality",
+)
 
 
 class _MultiHeadVisionModelProxy:
@@ -216,6 +225,53 @@ def _house_scope_bank() -> np.ndarray:
     return bank
 
 
+@lru_cache(maxsize=1)
+def _residential_scope_metadata() -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    for filename in ("properties_residential_cnn_images.csv", "properties_house_reviewed_images.csv"):
+        csv_path = resolve_artifact_path(_artifact_root(), filename)
+        if not csv_path.exists():
+            continue
+        frame = pd.read_csv(csv_path)
+        if "image_path" not in frame.columns:
+            continue
+        if "cnn_property_type" in frame.columns:
+            frame = frame.loc[
+                frame["cnn_property_type"].fillna("").astype(str).isin(SUPPORTED_RESIDENTIAL_TYPES)
+            ].copy()
+        for record in frame.to_dict(orient="records"):
+            resolved = _resolve_generated_image_path(record.get("image_path", ""))
+            if resolved is None:
+                continue
+            rows.append(
+                {
+                    field: str(record.get(field, "") or "")
+                    for field in UPLOAD_SCOPE_FIELDS
+                }
+            )
+    return rows
+
+
+@lru_cache(maxsize=1)
+def _house_scope_metadata() -> list[dict[str, str]]:
+    csv_path = resolve_artifact_path(_artifact_root(), "properties_house_reviewed_images.csv")
+    if not csv_path.exists():
+        return []
+    frame = pd.read_csv(csv_path)
+    rows: list[dict[str, str]] = []
+    for record in frame.to_dict(orient="records"):
+        resolved = _resolve_generated_image_path(record.get("image_path", ""))
+        if resolved is None:
+            continue
+        rows.append(
+            {
+                field: str(record.get(field, "") or "")
+                for field in UPLOAD_SCOPE_FIELDS
+            }
+        )
+    return rows
+
+
 @lru_cache(maxsize=4)
 def _load_cached_torch_bundle(artifact_prefix: str) -> dict[str, Any] | None:
     try:
@@ -343,13 +399,14 @@ class PropertyVisionAnalyzer:
         return self._analyze_with_fallback(properties)
 
     def analyze_uploaded_images(self, image_paths: list[str]) -> dict[str, Any]:
-        """Run actual saved-model inference for uploaded dashboard images.
+        """Run a fast, honest hosted-demo analysis for uploaded dashboard images.
 
-        The admin demo should not invent `House / 3 bedrooms / Modern` defaults.
-        Instead, it first checks whether the upload looks like a supported
-        residential property image, then applies the saved residential
-        property-type model and, for house images, the house-specific support
-        models.
+        The Railway-hosted dashboard should not perform heavyweight multi-model
+        inference on every upload because that can exceed request limits. This
+        upload path therefore relies on cached visual-neighbour banks built from
+        the reviewed training set. It still distinguishes supported residential
+        scenes from obvious non-property uploads and only fills house-specific
+        attributes when the nearest neighbours strongly support a house result.
         """
 
         resolved_paths = [Path(path) for path in image_paths if str(path).strip()]
@@ -358,17 +415,12 @@ class PropertyVisionAnalyzer:
 
         per_image: list[dict[str, Any]] = []
         for image_path in resolved_paths:
-            property_type_prediction = self._predict_saved_tasks(image_path, "residential_property_type")
-            property_type_label = property_type_prediction.get("cnn_property_type", {}).get("label", "Unknown")
-            property_type_confidence = float(
-                property_type_prediction.get("cnn_property_type", {}).get("confidence", 0.0)
-            )
-            scope = self._assess_uploaded_scope(image_path, property_type_confidence)
+            scope = self._analyze_uploaded_scope_fast(image_path)
             per_image.append(
                 {
                     "path": str(image_path),
-                    "property_type": str(property_type_label),
-                    "property_type_confidence": property_type_confidence,
+                    "property_type": str(scope.get("property_type", "Unknown")),
+                    "property_type_confidence": float(scope.get("property_type_confidence", 0.0)),
                     "scope": scope,
                 }
             )
@@ -437,40 +489,41 @@ class PropertyVisionAnalyzer:
                 "prefill": {},
             }
 
-        house_predictions = [
-            self._predict_saved_tasks(Path(row["path"]), "house_vision")
-            for row in supported_images
-        ]
-        bedroom_predictions = [
-            self._predict_saved_tasks(Path(row["path"]), "house_bedroom")
-            for row in supported_images
-        ]
-
-        predicted_condition = self._weighted_majority_from_predictions(house_predictions, "condition", "Good")
-        predicted_style = self._weighted_majority_from_predictions(house_predictions, "style", "Modern")
-        predicted_environment = self._weighted_majority_from_predictions(
-            house_predictions,
-            "environment",
-            best_scope["scene_hint"],
-        )
-        bedroom_label = self._weighted_majority_from_predictions(
-            bedroom_predictions,
-            "cnn_bedroom_class",
-            self._weighted_majority_from_predictions(house_predictions, "cnn_bedroom_class", "3"),
-        )
+        predicted_condition = self._weighted_majority(
+            [
+                (str(row["scope"].get("condition", "Good")), float(row["scope"]["support_score"]))
+                for row in supported_images
+                if str(row["scope"].get("condition", "")).strip()
+            ]
+        ) or "Good"
+        predicted_style = self._weighted_majority(
+            [
+                (str(row["scope"].get("style", "Modern")), float(row["scope"]["support_score"]))
+                for row in supported_images
+                if str(row["scope"].get("style", "")).strip()
+            ]
+        ) or "Modern"
+        predicted_environment = self._weighted_majority(
+            [
+                (str(row["scope"].get("environment", best_scope["scene_hint"])), float(row["scope"]["support_score"]))
+                for row in supported_images
+                if str(row["scope"].get("environment", "")).strip()
+            ]
+        ) or str(best_scope["scene_hint"])
+        bedroom_label = self._weighted_majority(
+            [
+                (str(row["scope"].get("cnn_bedroom_class", "3")), float(row["scope"]["support_score"]))
+                for row in supported_images
+                if str(row["scope"].get("cnn_bedroom_class", "")).strip()
+            ]
+        ) or "3"
         predicted_bedrooms = self._bedroom_label_to_int(bedroom_label, 3)
         combined_confidence = round(
             float(
                 np.mean(
                     [
-                        max(
-                            float(row["scope"]["support_score"]),
-                            self._prediction_confidence(house_predictions[index], "condition"),
-                            self._prediction_confidence(house_predictions[index], "style"),
-                            self._prediction_confidence(house_predictions[index], "environment"),
-                            self._prediction_confidence(bedroom_predictions[index], "cnn_bedroom_class"),
-                        )
-                        for index, row in enumerate(supported_images)
+                        float(row["scope"]["support_score"])
+                        for row in supported_images
                     ]
                 )
             ),
@@ -488,15 +541,21 @@ class PropertyVisionAnalyzer:
             "predicted_bedrooms": predicted_bedrooms,
             "confidence": combined_confidence,
             "analysis_message": (
-                "The uploaded image was analysed with the saved residential property, bedroom, "
-                "and house-attribute models."
+                "The uploaded image matched the reviewed house-image bank strongly enough to "
+                "estimate property type, condition, style, environment, and grouped bedrooms."
             ),
             "scene_hint": best_scope["scene_hint"],
             "scope_similarity": round(float(best_scope["top_similarity"]), 3),
             "prefill": {
                 "title": "Uploaded Property",
                 "district": "Maseru",
-                "locality": "Maseru",
+                "locality": self._weighted_majority(
+                    [
+                        (str(row["scope"].get("locality", "Maseru")), float(row["scope"]["support_score"]))
+                        for row in supported_images
+                        if str(row["scope"].get("locality", "")).strip()
+                    ]
+                ) or "Maseru",
                 "price": 1850000,
                 "bedrooms": predicted_bedrooms,
                 "property_type": "House",
@@ -504,6 +563,88 @@ class PropertyVisionAnalyzer:
                 "environment": predicted_environment,
                 "amenities": "parking, road access",
             },
+        }
+
+    def _analyze_uploaded_scope_fast(self, image_path: Path) -> dict[str, float | str | bool]:
+        descriptor = _scope_descriptor_for_path(image_path)
+        features = self._extract_image_features(image_path)
+        screen_like = self._looks_like_screen_capture(image_path)
+        scene_hint = self._scene_hint(features, screen_like)
+
+        residential_bank = _residential_scope_bank()
+        residential_meta = _residential_scope_metadata()
+        house_bank = _house_scope_bank()
+        house_meta = _house_scope_metadata()
+
+        top_similarity = 0.0
+        mean_top_similarity = 0.0
+        property_type = "Unknown"
+        property_type_confidence = 0.0
+        if residential_bank.size and residential_meta:
+            similarities = residential_bank @ descriptor
+            top_similarity = float(np.max(similarities))
+            top_k = min(5, len(similarities))
+            if top_k:
+                top_indices = np.argsort(similarities)[-top_k:][::-1]
+                mean_top_similarity = float(similarities[top_indices].mean())
+                property_type = self._weighted_majority(
+                    [
+                        (
+                            residential_meta[int(index)].get("cnn_property_type", "Unknown"),
+                            float(similarities[int(index)]),
+                        )
+                        for index in top_indices
+                    ]
+                ) or "Unknown"
+                property_type_confidence = float(
+                    np.mean(
+                        [
+                            float(similarities[int(index)])
+                            for index in top_indices
+                            if residential_meta[int(index)].get("cnn_property_type", "Unknown") == property_type
+                        ]
+                    )
+                )
+
+        house_similarity = 0.0
+        house_fields: dict[str, str] = {}
+        if house_bank.size and house_meta:
+            similarities = house_bank @ descriptor
+            house_similarity = float(np.max(similarities))
+            top_k = min(5, len(similarities))
+            top_indices = np.argsort(similarities)[-top_k:][::-1]
+            for field in ("condition", "style", "environment", "cnn_bedroom_class", "locality"):
+                label = self._weighted_majority(
+                    [
+                        (house_meta[int(index)].get(field, ""), float(similarities[int(index)]))
+                        for index in top_indices
+                        if house_meta[int(index)].get(field, "")
+                    ]
+                )
+                if label:
+                    house_fields[field] = label
+
+        support_score = 0.7 * max(top_similarity, 0.0) + 0.3 * max(house_similarity, 0.0)
+        supported = top_similarity >= 0.86 and support_score >= 0.82 and not screen_like
+        if screen_like:
+            supported = False
+            support_score = min(support_score, 0.42)
+        if property_type == "House" and house_similarity >= 0.9:
+            property_type_confidence = max(property_type_confidence, house_similarity)
+        return {
+            "supported": supported,
+            "support_score": round(float(support_score), 3),
+            "top_similarity": round(float(top_similarity), 3),
+            "mean_top_similarity": round(float(mean_top_similarity), 3),
+            "house_similarity": round(float(house_similarity), 3),
+            "scene_hint": scene_hint,
+            "property_type": property_type if supported else "Out of scope",
+            "property_type_confidence": round(float(property_type_confidence), 3),
+            "condition": house_fields.get("condition", ""),
+            "style": house_fields.get("style", ""),
+            "environment": house_fields.get("environment", ""),
+            "cnn_bedroom_class": house_fields.get("cnn_bedroom_class", ""),
+            "locality": house_fields.get("locality", ""),
         }
 
     def _analyze_from_saved_training(self, properties: pd.DataFrame) -> VisionAnalysisResult | None:
@@ -855,6 +996,27 @@ class PropertyVisionAnalyzer:
             "house_similarity": round(float(house_similarity), 3),
             "scene_hint": scene_hint,
         }
+
+    @staticmethod
+    def _scene_hint(features: dict[str, float], screen_like: bool) -> str:
+        if screen_like:
+            return "Detected screen"
+        if features["green"] >= 0.42:
+            return "Garden / outdoor residential scene"
+        if features["contrast"] >= 0.19:
+            return "Urban / high-detail residential scene"
+        return "Built-up residential scene"
+
+    @staticmethod
+    def _looks_like_screen_capture(image_path: Path) -> bool:
+        with Image.open(image_path) as source_image:
+            image = source_image.convert("RGB").resize((96, 96))
+            grayscale = np.asarray(image, dtype=np.float32).mean(axis=2) / 255.0
+        top_band = float(grayscale[:12, :].mean())
+        bottom_band = float(grayscale[-12:, :].mean())
+        center_band = float(grayscale[24:72, 16:80].mean())
+        row_variation = float(np.abs(np.diff(grayscale.mean(axis=1))).mean())
+        return top_band >= 0.56 and bottom_band <= 0.18 and center_band >= 0.45 and row_variation >= 0.05
 
     @staticmethod
     def _weighted_majority(weighted_labels: list[tuple[str, float]]) -> str:

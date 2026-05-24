@@ -21,28 +21,20 @@ class UploadedVisionDemoTests(unittest.TestCase):
     def test_house_similarity_can_override_weak_residential_type_label(self) -> None:
         analyzer = PropertyVisionAnalyzer()
 
-        def fake_predict(path: Path, artifact_prefix: str):
-            if artifact_prefix == "residential_property_type":
-                return {"cnn_property_type": {"label": "Apartment", "confidence": 0.96}}
-            if artifact_prefix == "house_vision":
-                return {
-                    "condition": {"label": "New", "confidence": 0.92},
-                    "style": {"label": "Modern", "confidence": 0.88},
-                    "environment": {"label": "Hillside", "confidence": 0.81},
-                    "cnn_bedroom_class": {"label": "4", "confidence": 0.79},
-                }
-            if artifact_prefix == "house_bedroom":
-                return {"cnn_bedroom_class": {"label": "4+", "confidence": 0.91}}
-            return {}
-
-        analyzer._predict_saved_tasks = fake_predict  # type: ignore[method-assign]
-        analyzer._assess_uploaded_scope = lambda *_args, **_kwargs: {  # type: ignore[method-assign]
+        analyzer._analyze_uploaded_scope_fast = lambda *_args, **_kwargs: {  # type: ignore[method-assign]
             "supported": True,
             "support_score": 0.93,
             "top_similarity": 0.94,
             "mean_top_similarity": 0.93,
             "house_similarity": 0.99,
             "scene_hint": "Garden / outdoor residential scene",
+            "property_type": "Apartment",
+            "property_type_confidence": 0.96,
+            "condition": "New",
+            "style": "Modern",
+            "environment": "Hillside",
+            "cnn_bedroom_class": "4+",
+            "locality": "Maseru West",
         }
 
         result = analyzer.analyze_uploaded_images([str(self.image_path)])
@@ -57,16 +49,20 @@ class UploadedVisionDemoTests(unittest.TestCase):
 
     def test_out_of_scope_upload_does_not_invent_house_attributes(self) -> None:
         analyzer = PropertyVisionAnalyzer()
-        analyzer._predict_saved_tasks = lambda *_args, **_kwargs: {  # type: ignore[method-assign]
-            "cnn_property_type": {"label": "Apartment", "confidence": 0.82}
-        }
-        analyzer._assess_uploaded_scope = lambda *_args, **_kwargs: {  # type: ignore[method-assign]
+        analyzer._analyze_uploaded_scope_fast = lambda *_args, **_kwargs: {  # type: ignore[method-assign]
             "supported": False,
             "support_score": 0.31,
             "top_similarity": 0.42,
             "mean_top_similarity": 0.39,
             "house_similarity": 0.28,
             "scene_hint": "Detected sports car",
+            "property_type": "Out of scope",
+            "property_type_confidence": 0.82,
+            "condition": "",
+            "style": "",
+            "environment": "",
+            "cnn_bedroom_class": "",
+            "locality": "",
         }
 
         result = analyzer.analyze_uploaded_images([str(self.image_path)])
