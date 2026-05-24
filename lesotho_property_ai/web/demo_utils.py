@@ -50,7 +50,7 @@ def save_uploaded_property_images(base_dir: Path, files: list[FileStorage]) -> l
 
 
 def analyze_uploaded_property(base_dir: Path, files: list[FileStorage]) -> dict[str, object]:
-    """Run the saved vision models against uploaded property images."""
+    """Run the upload analyzer against property images."""
 
     saved_images = save_uploaded_property_images(base_dir, files)
     if not saved_images:
@@ -64,6 +64,11 @@ def analyze_uploaded_property(base_dir: Path, files: list[FileStorage]) -> dict[
     features = analyzer._extract_image_features(first_image)  # type: ignore[attr-defined]
     confidence = float(analyzed.get("confidence", 0.0) or 0.0)
     confidence = max(0.05, min(confidence, 0.99))
+    feature_snapshot = analyzed.get("feature_snapshot") or {
+        "brightness": round(float(features["brightness"]), 3),
+        "contrast": round(float(features["contrast"]), 3),
+        "green": round(float(features["green"]), 3),
+    }
 
     return {
         "image_count": len(saved_images),
@@ -72,6 +77,7 @@ def analyze_uploaded_property(base_dir: Path, files: list[FileStorage]) -> dict[
         "allow_nlp_send": bool(analyzed.get("allow_nlp_send")),
         "analysis_message": str(analyzed.get("analysis_message", "") or ""),
         "scene_hint": str(analyzed.get("scene_hint", "") or ""),
+        "scene_description": str(analyzed.get("scene_description", "") or ""),
         "scope_similarity": analyzed.get("scope_similarity"),
         "predicted_property_type": str(analyzed.get("predicted_property_type", "Not available") or "Not available"),
         "predicted_condition": str(analyzed.get("predicted_condition", "Not available") or "Not available"),
@@ -79,11 +85,7 @@ def analyze_uploaded_property(base_dir: Path, files: list[FileStorage]) -> dict[
         "predicted_environment": str(analyzed.get("predicted_environment", "Not available") or "Not available"),
         "predicted_bedrooms": analyzed.get("predicted_bedrooms", "Not available"),
         "confidence": round(confidence, 3),
-        "feature_snapshot": {
-            "brightness": round(float(features["brightness"]), 3),
-            "contrast": round(float(features["contrast"]), 3),
-            "green": round(float(features["green"]), 3),
-        },
+        "feature_snapshot": feature_snapshot,
         "prefill": analyzed.get("prefill", {}),
     }
 

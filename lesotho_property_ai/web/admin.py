@@ -394,6 +394,8 @@ def data_preparation():
 @role_required("admin")
 def vision():
     if request.method == "POST":
+        session.pop("vision_demo_result", None)
+        session.pop("vision_nlp_prefill", None)
         files = [file for file in request.files.getlist("property_images") if file and file.filename]
         try:
             result = analyze_uploaded_property(current_app.config["BASE_DIR"], files)

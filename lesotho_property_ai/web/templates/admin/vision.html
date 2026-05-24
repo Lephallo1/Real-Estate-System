@@ -41,7 +41,7 @@
       </div>
       <p class="panel-copy">{{ vision_demo.analysis_message }}</p>
       <div class="key-value-stack">
-        <div><span>Predicted bedrooms</span><strong>{{ vision_demo.predicted_bedrooms }}</strong></div>
+        <div><span>Scene description</span><strong>{{ vision_demo.scene_description or "N/A" }}</strong></div>
         <div><span>Property type</span><strong>{{ vision_demo.predicted_property_type }}</strong></div>
         <div><span>Condition</span><strong>{{ vision_demo.predicted_condition }}</strong></div>
         <div><span>Style</span><strong>{{ vision_demo.predicted_style }}</strong></div>

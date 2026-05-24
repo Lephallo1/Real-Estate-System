@@ -9,7 +9,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import pickle
+import urllib.request
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -398,6 +400,194 @@ class PropertyVisionAnalyzer:
                 return self._analyze_with_fallback(properties)
         return self._analyze_with_fallback(properties)
 
+    @staticmethod
+    def _analyze_image_with_claude(image_path: Path) -> dict[str, Any] | None:
+        """Use Claude Vision as the primary hosted-image analyzer when configured."""
+
+        import base64
+
+        api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+        if not api_key:
+            return None
+
+        media_type = {
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+            ".png": "image/png",
+            ".gif": "image/gif",
+            ".webp": "image/webp",
+        }.get(image_path.suffix.lower(), "image/jpeg")
+
+        try:
+            encoded = base64.b64encode(image_path.read_bytes()).decode("utf-8")
+        except OSError:
+            return None
+
+        prompt = (
+            "You are a real estate image classifier for a Lesotho property system. "
+            "Respond with JSON only. Use exactly this schema: "
+            '{"is_property": true or false, '
+            '"property_type": "House" or "Apartment" or "Townhouse" or "Commercial" or "Site" or "Not a property", '
+            '"condition": "New" or "Good" or "Fair" or "Renovation Needed" or "N/A", '
+            '"style": "Modern" or "Traditional" or "Contemporary" or "Classic" or "N/A", '
+            '"environment": "Suburban" or "Urban" or "Rural" or "Hillside" or "N/A", '
+            '"scene_description": "One sentence describing what is visible.", '
+            '"confidence": 0.0 to 1.0}. '
+            "If the image is not a residential property scene, set is_property to false, "
+            'property_type to "Not a property", and non-applicable label fields to "N/A".'
+        )
+
+        payload = {
+            "model": "claude-sonnet-4-20250514",
+            "max_tokens": 300,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": media_type,
+                                "data": encoded,
+                            },
+                        },
+                        {"type": "text", "text": prompt},
+                    ],
+                }
+            ],
+        }
+
+        try:
+            request = urllib.request.Request(
+                "https://api.anthropic.com/v1/messages",
+                data=json.dumps(payload).encode("utf-8"),
+                headers={
+                    "content-type": "application/json",
+                    "x-api-key": api_key,
+                    "anthropic-version": "2023-06-01",
+                },
+                method="POST",
+            )
+            with urllib.request.urlopen(request, timeout=12) as response:
+                raw = json.loads(response.read().decode("utf-8"))
+            text = str(raw.get("content", [{}])[0].get("text", "")).strip()
+            if "```" in text:
+                for part in text.split("```"):
+                    candidate = part.strip()
+                    if candidate.lower().startswith("json"):
+                        candidate = candidate[4:].strip()
+                    if candidate.startswith("{") and candidate.endswith("}"):
+                        text = candidate
+                        break
+            start = text.find("{")
+            end = text.rfind("}")
+            if start == -1 or end == -1 or end <= start:
+                return None
+            return json.loads(text[start : end + 1])
+        except Exception:
+            return None
+
+    @staticmethod
+    def _coerce_bool(value: object) -> bool:
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            return value.strip().lower() in {"true", "1", "yes", "y"}
+        return bool(value)
+
+    @staticmethod
+    def _clamp_confidence(value: object, default: float = 0.75) -> float:
+        try:
+            confidence = float(value)
+        except (TypeError, ValueError):
+            confidence = default
+        return max(0.0, min(confidence, 0.99))
+
+    @staticmethod
+    def _normalize_property_type(value: object) -> str:
+        raw = str(value or "").strip().lower()
+        mapping = {
+            "house": "House",
+            "home": "House",
+            "apartment": "Apartment",
+            "flat": "Apartment",
+            "townhouse": "Townhouse",
+            "town house": "Townhouse",
+            "commercial": "Commercial",
+            "site": "Site",
+            "land": "Site",
+            "not a property": "Not a property",
+            "non-property": "Not a property",
+            "non property": "Not a property",
+            "car": "Not a property",
+            "vehicle": "Not a property",
+            "screenshot": "Not a property",
+        }
+        return mapping.get(raw, str(value or "").strip() or "Not a property")
+
+    @staticmethod
+    def _normalize_label(value: object, allowed: set[str], default: str) -> str:
+        text = str(value or "").strip()
+        if not text:
+            return default
+        if text in allowed:
+            return text
+        lowered = text.lower()
+        for candidate in allowed:
+            if candidate.lower() == lowered:
+                return candidate
+        return default
+
+    def _scope_from_claude_result(self, result: dict[str, Any]) -> dict[str, float | str | bool]:
+        property_type = self._normalize_property_type(result.get("property_type"))
+        is_property = self._coerce_bool(result.get("is_property"))
+        confidence = self._clamp_confidence(result.get("confidence"), default=0.82)
+        condition = self._normalize_label(
+            result.get("condition"),
+            {"New", "Good", "Fair", "Renovation Needed"},
+            "Not available",
+        )
+        style = self._normalize_label(
+            result.get("style"),
+            {"Modern", "Traditional", "Contemporary", "Classic"},
+            "Not available",
+        )
+        environment = self._normalize_label(
+            result.get("environment"),
+            {"Suburban", "Urban", "Rural", "Hillside"},
+            "Not available",
+        )
+        scene_description = str(result.get("scene_description", "") or "").strip()
+        if not scene_description:
+            if is_property and property_type in SUPPORTED_RESIDENTIAL_TYPES:
+                scene_description = f"The image appears to show a {property_type.lower()} scene."
+            else:
+                scene_description = "The image does not appear to show a supported residential property scene."
+        supported = is_property and property_type in SUPPORTED_RESIDENTIAL_TYPES
+        scene_hint = (
+            f"Claude detected a {property_type.lower()} scene"
+            if supported
+            else "Claude detected a non-property scene"
+        )
+        return {
+            "supported": supported,
+            "support_score": round(confidence if supported else min(confidence, 0.45), 3),
+            "top_similarity": round(confidence, 3),
+            "mean_top_similarity": round(confidence, 3),
+            "house_similarity": round(confidence if property_type == "House" else 0.0, 3),
+            "scene_hint": scene_hint,
+            "scene_description": scene_description,
+            "property_type": property_type,
+            "property_type_confidence": round(confidence, 3),
+            "condition": condition if supported else "",
+            "style": style if supported else "",
+            "environment": environment if supported else "",
+            "cnn_bedroom_class": "",
+            "locality": "",
+            "analysis_source": "claude",
+        }
+
     def analyze_uploaded_images(self, image_paths: list[str]) -> dict[str, Any]:
         """Run a fast, honest hosted-demo analysis for uploaded dashboard images.
 
@@ -415,7 +605,12 @@ class PropertyVisionAnalyzer:
 
         per_image: list[dict[str, Any]] = []
         for image_path in resolved_paths:
-            scope = self._analyze_uploaded_scope_fast(image_path)
+            claude_result = self._analyze_image_with_claude(image_path)
+            scope = (
+                self._scope_from_claude_result(claude_result)
+                if claude_result is not None
+                else self._analyze_uploaded_scope_fast(image_path)
+            )
             per_image.append(
                 {
                     "path": str(image_path),
@@ -426,23 +621,28 @@ class PropertyVisionAnalyzer:
             )
 
         supported_images = [row for row in per_image if row["scope"]["supported"]]
+        used_claude = any(str(row["scope"].get("analysis_source", "")) == "claude" for row in per_image)
         if not supported_images:
             strongest = max(per_image, key=lambda row: float(row["scope"]["support_score"]))
+            strongest_property_type = str(strongest["scope"].get("property_type", "Out of scope") or "Out of scope")
             return {
                 "supported_for_property_workflow": False,
                 "allow_nlp_send": False,
                 "house_specialized": False,
-                "predicted_property_type": "Out of scope",
+                "predicted_property_type": strongest_property_type,
                 "predicted_condition": "Not available",
                 "predicted_style": "Not available",
                 "predicted_environment": "Not available",
                 "predicted_bedrooms": "Not available",
                 "confidence": round(float(strongest["scope"]["support_score"]), 3),
                 "analysis_message": (
-                    "The uploaded image looks outside the residential-property training scope, "
+                    "The uploaded image looks outside the supported residential-property workflow, "
                     "so the dashboard will not invent house attributes for it."
                 ),
                 "scene_hint": strongest["scope"]["scene_hint"],
+                "scene_description": str(
+                    strongest["scope"].get("scene_description", strongest["scope"]["scene_hint"]) or strongest["scope"]["scene_hint"]
+                ),
                 "scope_similarity": round(float(strongest["scope"]["top_similarity"]), 3),
                 "prefill": {},
             }
@@ -470,21 +670,53 @@ class PropertyVisionAnalyzer:
         best_scope = max(supported_images, key=lambda row: float(row["scope"]["support_score"]))["scope"]
 
         if dominant_property_type != "House":
+            predicted_condition = self._weighted_majority(
+                [
+                    (str(row["scope"].get("condition", "")), float(row["scope"]["support_score"]))
+                    for row in supported_images
+                    if str(row["scope"].get("condition", "")).strip()
+                ]
+            ) or "Residential scene detected"
+            predicted_style = self._weighted_majority(
+                [
+                    (str(row["scope"].get("style", "")), float(row["scope"]["support_score"]))
+                    for row in supported_images
+                    if str(row["scope"].get("style", "")).strip()
+                ]
+            ) or "House-only detail model not applied"
+            predicted_environment = self._weighted_majority(
+                [
+                    (str(row["scope"].get("environment", best_scope["scene_hint"])), float(row["scope"]["support_score"]))
+                    for row in supported_images
+                    if str(row["scope"].get("environment", "")).strip()
+                ]
+            ) or str(best_scope["scene_hint"])
+            scene_description = self._weighted_majority(
+                [
+                    (str(row["scope"].get("scene_description", best_scope["scene_hint"])), float(row["scope"]["support_score"]))
+                    for row in supported_images
+                    if str(row["scope"].get("scene_description", "")).strip()
+                ]
+            ) or str(best_scope["scene_hint"])
             return {
                 "supported_for_property_workflow": True,
                 "allow_nlp_send": False,
                 "house_specialized": False,
                 "predicted_property_type": dominant_property_type,
-                "predicted_condition": "Residential scene detected",
-                "predicted_style": "House-only detail model not applied",
-                "predicted_environment": best_scope["scene_hint"],
+                "predicted_condition": predicted_condition,
+                "predicted_style": predicted_style,
+                "predicted_environment": predicted_environment,
                 "predicted_bedrooms": "Not available",
                 "confidence": mean_confidence,
                 "analysis_message": (
-                    "The upload looks like a residential property image, but the detailed bedroom "
-                    "and house-attribute heads are only calibrated for house listings."
+                    "Claude analysed the upload as a residential property image, but NLP handoff remains "
+                    "limited to supported house-image results."
+                    if used_claude
+                    else "The upload looks like a residential property image, but NLP handoff remains "
+                    "limited to supported house-image results."
                 ),
                 "scene_hint": best_scope["scene_hint"],
+                "scene_description": scene_description,
                 "scope_similarity": round(float(best_scope["top_similarity"]), 3),
                 "prefill": {},
             }
@@ -518,6 +750,17 @@ class PropertyVisionAnalyzer:
             ]
         ) or "3"
         predicted_bedrooms = self._bedroom_label_to_int(bedroom_label, 3)
+        scene_description = self._weighted_majority(
+            [
+                (str(row["scope"].get("scene_description", best_scope["scene_hint"])), float(row["scope"]["support_score"]))
+                for row in supported_images
+                if str(row["scope"].get("scene_description", "")).strip()
+            ]
+        )
+        if not scene_description:
+            scene_description = (
+                f"A {predicted_style.lower()} house scene in a {predicted_environment.lower()} setting."
+            )
         combined_confidence = round(
             float(
                 np.mean(
@@ -529,6 +772,24 @@ class PropertyVisionAnalyzer:
             ),
             3,
         )
+        prefill_payload = {
+            "title": "Uploaded Property",
+            "district": "Maseru",
+            "locality": self._weighted_majority(
+                [
+                    (str(row["scope"].get("locality", "Maseru")), float(row["scope"]["support_score"]))
+                    for row in supported_images
+                    if str(row["scope"].get("locality", "")).strip()
+                ]
+            ) or "Maseru",
+            "price": 1850000,
+            "property_type": "House",
+            "condition": predicted_condition,
+            "environment": predicted_environment,
+            "amenities": "parking, road access",
+        }
+        if bedroom_label:
+            prefill_payload["bedrooms"] = predicted_bedrooms
 
         return {
             "supported_for_property_workflow": True,
@@ -541,28 +802,16 @@ class PropertyVisionAnalyzer:
             "predicted_bedrooms": predicted_bedrooms,
             "confidence": combined_confidence,
             "analysis_message": (
-                "The uploaded image matched the reviewed house-image bank strongly enough to "
+                "Claude analysed the uploaded image as a house scene and supplied the displayed "
+                "property attributes."
+                if used_claude
+                else "The uploaded image matched the reviewed house-image bank strongly enough to "
                 "estimate property type, condition, style, environment, and grouped bedrooms."
             ),
             "scene_hint": best_scope["scene_hint"],
+            "scene_description": scene_description,
             "scope_similarity": round(float(best_scope["top_similarity"]), 3),
-            "prefill": {
-                "title": "Uploaded Property",
-                "district": "Maseru",
-                "locality": self._weighted_majority(
-                    [
-                        (str(row["scope"].get("locality", "Maseru")), float(row["scope"]["support_score"]))
-                        for row in supported_images
-                        if str(row["scope"].get("locality", "")).strip()
-                    ]
-                ) or "Maseru",
-                "price": 1850000,
-                "bedrooms": predicted_bedrooms,
-                "property_type": "House",
-                "condition": predicted_condition,
-                "environment": predicted_environment,
-                "amenities": "parking, road access",
-            },
+            "prefill": prefill_payload,
         }
 
     def _analyze_uploaded_scope_fast(self, image_path: Path) -> dict[str, float | str | bool]:
@@ -629,6 +878,15 @@ class PropertyVisionAnalyzer:
         if screen_like:
             supported = False
             support_score = min(support_score, 0.42)
+        scene_description = self._fallback_scene_description(
+            property_type=property_type,
+            scene_hint=scene_hint,
+            condition=house_fields.get("condition", ""),
+            style=house_fields.get("style", ""),
+            environment=house_fields.get("environment", ""),
+            supported=supported,
+            screen_like=screen_like,
+        )
         if property_type == "House" and house_similarity >= 0.9:
             property_type_confidence = max(property_type_confidence, house_similarity)
         return {
@@ -645,6 +903,8 @@ class PropertyVisionAnalyzer:
             "environment": house_fields.get("environment", ""),
             "cnn_bedroom_class": house_fields.get("cnn_bedroom_class", ""),
             "locality": house_fields.get("locality", ""),
+            "scene_description": scene_description,
+            "analysis_source": "fallback",
         }
 
     def _analyze_from_saved_training(self, properties: pd.DataFrame) -> VisionAnalysisResult | None:
@@ -1006,6 +1266,28 @@ class PropertyVisionAnalyzer:
         if features["contrast"] >= 0.19:
             return "Urban / high-detail residential scene"
         return "Built-up residential scene"
+
+    @staticmethod
+    def _fallback_scene_description(
+        *,
+        property_type: str,
+        scene_hint: str,
+        condition: str,
+        style: str,
+        environment: str,
+        supported: bool,
+        screen_like: bool,
+    ) -> str:
+        if screen_like:
+            return "The uploaded image appears to show a screen or screenshot rather than a residential property."
+        if not supported:
+            return f"The uploaded image appears outside the supported residential-property scope ({scene_hint.lower()})."
+        if property_type == "House":
+            details = " ".join(part for part in [condition, style, environment] if part and part != "Not available")
+            if details:
+                return f"The uploaded image resembles a house with {details.lower()} characteristics."
+            return "The uploaded image resembles a house scene from the reviewed training examples."
+        return f"The uploaded image resembles a residential {property_type.lower()} scene."
 
     @staticmethod
     def _looks_like_screen_capture(image_path: Path) -> bool:
