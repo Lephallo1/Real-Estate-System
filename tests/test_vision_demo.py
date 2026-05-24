@@ -20,7 +20,7 @@ class UploadedVisionDemoTests(unittest.TestCase):
 
     def test_house_similarity_can_override_weak_residential_type_label(self) -> None:
         analyzer = PropertyVisionAnalyzer()
-        analyzer._analyze_image_with_claude = lambda *_args, **_kwargs: None  # type: ignore[method-assign]
+        analyzer._analyze_image_with_llm = lambda *_args, **_kwargs: None  # type: ignore[method-assign]
 
         analyzer._analyze_uploaded_scope_fast = lambda *_args, **_kwargs: {  # type: ignore[method-assign]
             "supported": True,
@@ -51,7 +51,7 @@ class UploadedVisionDemoTests(unittest.TestCase):
 
     def test_out_of_scope_upload_does_not_invent_house_attributes(self) -> None:
         analyzer = PropertyVisionAnalyzer()
-        analyzer._analyze_image_with_claude = lambda *_args, **_kwargs: None  # type: ignore[method-assign]
+        analyzer._analyze_image_with_llm = lambda *_args, **_kwargs: None  # type: ignore[method-assign]
         analyzer._analyze_uploaded_scope_fast = lambda *_args, **_kwargs: {  # type: ignore[method-assign]
             "supported": False,
             "support_score": 0.31,
@@ -76,9 +76,9 @@ class UploadedVisionDemoTests(unittest.TestCase):
         self.assertEqual(result["predicted_property_type"], "Out of scope")
         self.assertEqual(result["predicted_bedrooms"], "Not available")
 
-    def test_claude_house_result_is_used_when_available(self) -> None:
+    def test_llm_house_result_is_used_when_available(self) -> None:
         analyzer = PropertyVisionAnalyzer()
-        analyzer._analyze_image_with_claude = lambda *_args, **_kwargs: {  # type: ignore[method-assign]
+        analyzer._analyze_image_with_llm = lambda *_args, **_kwargs: {  # type: ignore[method-assign]
             "is_property": True,
             "property_type": "House",
             "condition": "Good",
@@ -86,10 +86,12 @@ class UploadedVisionDemoTests(unittest.TestCase):
             "environment": "Suburban",
             "scene_description": "A modern single-storey house with a paved yard is visible.",
             "confidence": 0.91,
+            "analysis_source": "gemini",
+            "analysis_source_label": "Gemini",
         }
 
         def should_not_run(*_args, **_kwargs):
-            raise AssertionError("Fallback analyzer should not run when Claude returns a valid result.")
+            raise AssertionError("Fallback analyzer should not run when the hosted LLM returns a valid result.")
 
         analyzer._analyze_uploaded_scope_fast = should_not_run  # type: ignore[method-assign]
 
@@ -103,9 +105,9 @@ class UploadedVisionDemoTests(unittest.TestCase):
         self.assertEqual(result["predicted_environment"], "Suburban")
         self.assertEqual(result["scene_description"], "A modern single-storey house with a paved yard is visible.")
 
-    def test_claude_non_property_result_is_used_when_available(self) -> None:
+    def test_llm_non_property_result_is_used_when_available(self) -> None:
         analyzer = PropertyVisionAnalyzer()
-        analyzer._analyze_image_with_claude = lambda *_args, **_kwargs: {  # type: ignore[method-assign]
+        analyzer._analyze_image_with_llm = lambda *_args, **_kwargs: {  # type: ignore[method-assign]
             "is_property": False,
             "property_type": "Not a property",
             "condition": "N/A",
@@ -113,10 +115,12 @@ class UploadedVisionDemoTests(unittest.TestCase):
             "environment": "N/A",
             "scene_description": "The image shows a silver hatchback parked indoors.",
             "confidence": 0.94,
+            "analysis_source": "gemini",
+            "analysis_source_label": "Gemini",
         }
 
         def should_not_run(*_args, **_kwargs):
-            raise AssertionError("Fallback analyzer should not run when Claude returns a valid result.")
+            raise AssertionError("Fallback analyzer should not run when the hosted LLM returns a valid result.")
 
         analyzer._analyze_uploaded_scope_fast = should_not_run  # type: ignore[method-assign]
 

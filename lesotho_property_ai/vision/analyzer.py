@@ -12,6 +12,7 @@ import json
 import os
 import pickle
 import urllib.request
+import base64
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -401,10 +402,90 @@ class PropertyVisionAnalyzer:
         return self._analyze_with_fallback(properties)
 
     @staticmethod
-    def _analyze_image_with_claude(image_path: Path) -> dict[str, Any] | None:
-        """Use Claude Vision as the primary hosted-image analyzer when configured."""
+    def _analyze_image_with_gemini(image_path: Path) -> dict[str, Any] | None:
+        """Use Gemini Vision first when a Google AI Studio key is available."""
 
-        import base64
+        api_key = os.environ.get("GEMINI_API_KEY", "").strip() or os.environ.get("GOOGLE_API_KEY", "").strip()
+        if not api_key:
+            return None
+
+        media_type = {
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+            ".png": "image/png",
+            ".gif": "image/gif",
+            ".webp": "image/webp",
+        }.get(image_path.suffix.lower(), "image/jpeg")
+
+        try:
+            encoded = base64.b64encode(image_path.read_bytes()).decode("utf-8")
+        except OSError:
+            return None
+
+        prompt = (
+            "You are a real estate image classifier for a Lesotho property system. "
+            "Respond with JSON only. Use exactly this schema: "
+            '{"is_property": true or false, '
+            '"property_type": "House" or "Apartment" or "Townhouse" or "Commercial" or "Site" or "Not a property", '
+            '"condition": "New" or "Good" or "Fair" or "Renovation Needed" or "N/A", '
+            '"style": "Modern" or "Traditional" or "Contemporary" or "Classic" or "N/A", '
+            '"environment": "Suburban" or "Urban" or "Rural" or "Hillside" or "N/A", '
+            '"scene_description": "One sentence describing what is visible.", '
+            '"confidence": 0.0 to 1.0}. '
+            "If the image is not a residential property scene, set is_property to false, "
+            'property_type to "Not a property", and non-applicable label fields to "N/A".'
+        )
+
+        payload = {
+            "contents": [
+                {
+                    "parts": [
+                        {
+                            "inline_data": {
+                                "mime_type": media_type,
+                                "data": encoded,
+                            }
+                        },
+                        {"text": prompt},
+                    ]
+                }
+            ],
+            "generationConfig": {
+                "temperature": 0,
+                "responseMimeType": "application/json",
+            },
+        }
+
+        try:
+            request = urllib.request.Request(
+                "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+                data=json.dumps(payload).encode("utf-8"),
+                headers={
+                    "content-type": "application/json",
+                    "x-goog-api-key": api_key,
+                },
+                method="POST",
+            )
+            with urllib.request.urlopen(request, timeout=12) as response:
+                raw = json.loads(response.read().decode("utf-8"))
+            parts = raw.get("candidates", [{}])[0].get("content", {}).get("parts", [])
+            text = "".join(str(part.get("text", "")) for part in parts if isinstance(part, dict)).strip()
+            if not text:
+                return None
+            start = text.find("{")
+            end = text.rfind("}")
+            if start == -1 or end == -1 or end <= start:
+                return None
+            parsed = json.loads(text[start : end + 1])
+            parsed["analysis_source"] = "gemini"
+            parsed["analysis_source_label"] = "Gemini"
+            return parsed
+        except Exception:
+            return None
+
+    @staticmethod
+    def _analyze_image_with_claude(image_path: Path) -> dict[str, Any] | None:
+        """Use Claude Vision when an Anthropic API key is available."""
 
         api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
         if not api_key:
@@ -484,9 +565,20 @@ class PropertyVisionAnalyzer:
             end = text.rfind("}")
             if start == -1 or end == -1 or end <= start:
                 return None
-            return json.loads(text[start : end + 1])
+            parsed = json.loads(text[start : end + 1])
+            parsed["analysis_source"] = "claude"
+            parsed["analysis_source_label"] = "Claude"
+            return parsed
         except Exception:
             return None
+
+    def _analyze_image_with_llm(self, image_path: Path) -> dict[str, Any] | None:
+        """Try configured multimodal APIs before local heuristics."""
+
+        gemini_result = self._analyze_image_with_gemini(image_path)
+        if gemini_result is not None:
+            return gemini_result
+        return self._analyze_image_with_claude(image_path)
 
     @staticmethod
     def _coerce_bool(value: object) -> bool:
@@ -539,10 +631,12 @@ class PropertyVisionAnalyzer:
                 return candidate
         return default
 
-    def _scope_from_claude_result(self, result: dict[str, Any]) -> dict[str, float | str | bool]:
+    def _scope_from_llm_result(self, result: dict[str, Any]) -> dict[str, float | str | bool]:
         property_type = self._normalize_property_type(result.get("property_type"))
         is_property = self._coerce_bool(result.get("is_property"))
         confidence = self._clamp_confidence(result.get("confidence"), default=0.82)
+        source_label = str(result.get("analysis_source_label", "AI") or "AI").strip()
+        source_name = str(result.get("analysis_source", "llm") or "llm").strip().lower()
         condition = self._normalize_label(
             result.get("condition"),
             {"New", "Good", "Fair", "Renovation Needed"},
@@ -566,9 +660,9 @@ class PropertyVisionAnalyzer:
                 scene_description = "The image does not appear to show a supported residential property scene."
         supported = is_property and property_type in SUPPORTED_RESIDENTIAL_TYPES
         scene_hint = (
-            f"Claude detected a {property_type.lower()} scene"
+            f"{source_label} detected a {property_type.lower()} scene"
             if supported
-            else "Claude detected a non-property scene"
+            else f"{source_label} detected a non-property scene"
         )
         return {
             "supported": supported,
@@ -585,7 +679,8 @@ class PropertyVisionAnalyzer:
             "environment": environment if supported else "",
             "cnn_bedroom_class": "",
             "locality": "",
-            "analysis_source": "claude",
+            "analysis_source": source_name,
+            "analysis_source_label": source_label,
         }
 
     def analyze_uploaded_images(self, image_paths: list[str]) -> dict[str, Any]:
@@ -605,10 +700,10 @@ class PropertyVisionAnalyzer:
 
         per_image: list[dict[str, Any]] = []
         for image_path in resolved_paths:
-            claude_result = self._analyze_image_with_claude(image_path)
+            llm_result = self._analyze_image_with_llm(image_path)
             scope = (
-                self._scope_from_claude_result(claude_result)
-                if claude_result is not None
+                self._scope_from_llm_result(llm_result)
+                if llm_result is not None
                 else self._analyze_uploaded_scope_fast(image_path)
             )
             per_image.append(
@@ -621,7 +716,15 @@ class PropertyVisionAnalyzer:
             )
 
         supported_images = [row for row in per_image if row["scope"]["supported"]]
-        used_claude = any(str(row["scope"].get("analysis_source", "")) == "claude" for row in per_image)
+        llm_source_label = next(
+            (
+                str(row["scope"].get("analysis_source_label", "")).strip()
+                for row in per_image
+                if str(row["scope"].get("analysis_source_label", "")).strip()
+            ),
+            "",
+        )
+        used_llm = any(str(row["scope"].get("analysis_source", "")).strip() for row in per_image)
         if not supported_images:
             strongest = max(per_image, key=lambda row: float(row["scope"]["support_score"]))
             strongest_property_type = str(strongest["scope"].get("property_type", "Out of scope") or "Out of scope")
@@ -709,9 +812,9 @@ class PropertyVisionAnalyzer:
                 "predicted_bedrooms": "Not available",
                 "confidence": mean_confidence,
                 "analysis_message": (
-                    "Claude analysed the upload as a residential property image, but NLP handoff remains "
+                    f"{llm_source_label or 'The hosted AI'} analysed the upload as a residential property image, but NLP handoff remains "
                     "limited to supported house-image results."
-                    if used_claude
+                    if used_llm
                     else "The upload looks like a residential property image, but NLP handoff remains "
                     "limited to supported house-image results."
                 ),
@@ -802,9 +905,9 @@ class PropertyVisionAnalyzer:
             "predicted_bedrooms": predicted_bedrooms,
             "confidence": combined_confidence,
             "analysis_message": (
-                "Claude analysed the uploaded image as a house scene and supplied the displayed "
+                f"{llm_source_label or 'The hosted AI'} analysed the uploaded image as a house scene and supplied the displayed "
                 "property attributes."
-                if used_claude
+                if used_llm
                 else "The uploaded image matched the reviewed house-image bank strongly enough to "
                 "estimate property type, condition, style, environment, and grouped bedrooms."
             ),
