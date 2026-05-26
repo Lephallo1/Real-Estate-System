@@ -268,7 +268,14 @@ def recommendation_cards(bundle: dict[str, object], *, single_client: bool) -> l
         prop = serialize_property(lookup.loc[property_id])
         reasons = coerce_text_list(match.get("recommendation_reasons", []))
         cues = coerce_text_list(match.get("shared_text_cues", []))
-        campaign_row = campaigns.loc[campaigns["property_id"] == property_id].head(1)
+        campaign_mask = campaigns["property_id"].astype(str).eq(str(property_id)) if "property_id" in campaigns else pd.Series(False, index=campaigns.index)
+        if "client_id" in campaigns and "client_id" in match:
+            campaign_mask = campaign_mask & campaigns["client_id"].astype(str).eq(str(match.get("client_id", "")))
+        if "rank" in campaigns and "rank" in match:
+            campaign_mask = campaign_mask & pd.to_numeric(campaigns["rank"], errors="coerce").fillna(0).astype(int).eq(
+                int(numeric_value(match.get("rank", 0), 0))
+            )
+        campaign_row = campaigns.loc[campaign_mask].head(1)
         message = ""
         if not campaign_row.empty and "message" in campaign_row.columns:
             message = str(campaign_row.iloc[0]["message"])

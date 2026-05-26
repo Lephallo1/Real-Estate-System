@@ -124,6 +124,79 @@ class MarketingAutomationTests(unittest.TestCase):
         self.assertNotIn("viewing details", row["call_to_action"])
         self.assertNotIn(" and ", row["message"])
 
+    def test_generate_creates_ranked_message_for_every_match(self) -> None:
+        matches = pd.DataFrame(
+            [
+                {
+                    "client_id": "client-3",
+                    "client_name": "Mpho",
+                    "property_id": "property-3",
+                    "property_title": "5-Bedroom House",
+                    "district": "Maseru",
+                    "recommendation_reasons": ["bedroom layout is a strong fit"],
+                    "overall_score": 0.86,
+                    "rank": 1,
+                },
+                {
+                    "client_id": "client-3",
+                    "client_name": "Mpho",
+                    "property_id": "property-4",
+                    "property_title": "3-Bedroom House",
+                    "district": "Maseru",
+                    "recommendation_reasons": ["it matches the preferred district"],
+                    "overall_score": 0.72,
+                    "rank": 2,
+                },
+            ]
+        )
+        properties = pd.DataFrame(
+            [
+                {
+                    "property_id": "property-3",
+                    "title": "5 bedroom house in Maseru",
+                    "district": "Maseru",
+                    "locality": "Maseru",
+                    "bedrooms": 5,
+                    "price": 1600000,
+                    "predicted_environment": "Suburban",
+                    "predicted_condition": "Good",
+                    "amenities": ["parking"],
+                },
+                {
+                    "property_id": "property-4",
+                    "title": "3 bedroom house in Maseru",
+                    "district": "Maseru",
+                    "locality": "Maseru",
+                    "bedrooms": 3,
+                    "price": 950000,
+                    "predicted_environment": "Suburban",
+                    "predicted_condition": "Good",
+                    "amenities": ["parking"],
+                },
+            ]
+        )
+        clients = pd.DataFrame(
+            [
+                {
+                    "client_id": "client-3",
+                    "name": "Mpho",
+                    "preferred_language": "en",
+                    "preferred_channels": ["dashboard"],
+                    "preferred_bedrooms": 5,
+                    "free_text_preference_en": "",
+                    "free_text_preference_st": "",
+                }
+            ]
+        )
+
+        campaigns = MarketingAutomation().generate(matches, properties, clients)
+
+        self.assertEqual(len(campaigns), 2)
+        self.assertIn("top match", campaigns.iloc[0]["message"])
+        self.assertIn("second choice", campaigns.iloc[1]["message"])
+        self.assertIn("backup option", campaigns.iloc[1]["message"])
+        self.assertIn("preferred 5", campaigns.iloc[1]["message"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -40,7 +40,7 @@ class PipelineIntegrationTests(unittest.TestCase):
         self.assertEqual(len(result.properties), 12)
         self.assertGreaterEqual(len(result.clients), 5)
         self.assertEqual(len(result.matches), 18)
-        self.assertEqual(len(result.campaigns), len(result.clients))
+        self.assertEqual(len(result.campaigns), len(result.matches))
         self.assertIn("predicted_property_type", result.properties.columns)
         self.assertIn("text_embedding", result.properties.columns)
         self.assertTrue(all(Path(path).exists() for paths in result.properties["image_paths"] for path in paths))

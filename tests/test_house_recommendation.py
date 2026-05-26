@@ -105,7 +105,7 @@ class HouseRecommendationPipelineTests(unittest.TestCase):
         self.assertTrue((result.properties["listing_intent"] == "sale").all())
         self.assertTrue((result.properties["property_type"] == "House").all())
         self.assertEqual(len(result.matches), len(result.clients) * 2)
-        self.assertEqual(len(result.campaigns), len(result.clients))
+        self.assertEqual(len(result.campaigns), len(result.matches))
         self.assertIn("recommendation", result.metrics)
         self.assertIn("fusion", result.metrics)
         self.assertIn("structured_weight_used", result.matches.columns)

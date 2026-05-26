@@ -16,18 +16,20 @@ class MarketingAutomation:
         properties: pd.DataFrame,
         clients: pd.DataFrame,
     ) -> pd.DataFrame:
-        """Create one top-message campaign row per client."""
+        """Create one rank-aware campaign/message row for every returned match."""
 
-        top_matches = matches.sort_values(["client_id", "rank"]).groupby("client_id").head(1)
+        ranked_matches = matches.sort_values(["client_id", "rank"])
         property_lookup = properties.set_index("property_id")
         client_lookup = clients.set_index("client_id")
 
         records: list[dict[str, object]] = []
-        for match in top_matches.itertuples(index=False):
+        for match in ranked_matches.itertuples(index=False):
             client = client_lookup.loc[match.client_id]
             property_row = property_lookup.loc[match.property_id]
             language = client["preferred_language"]
-            channel = client["preferred_channels"][0] if client["preferred_channels"] else "email"
+            preferred_channels = self._coerce_list(client.get("preferred_channels", []))
+            channel = preferred_channels[0] if preferred_channels else "email"
+            rank = self._coerce_int(getattr(match, "rank", 1)) or 1
             display_title = self._presentation_title(
                 property_row.get("title", ""),
                 bedrooms=property_row.get("bedrooms", 0),
@@ -41,25 +43,29 @@ class MarketingAutomation:
                 display_title=display_title,
                 language=language,
                 channel=channel,
+                rank=rank,
             )
             preview_text = self._build_preview_text(
                 property_row=property_row,
                 display_title=display_title,
                 language=language,
+                rank=rank,
             )
             call_to_action = self._build_call_to_action(language, channel)
             estimated_engagement = self._estimate_engagement_score(
                 match_score=float(match.overall_score),
                 channel=channel,
                 recommendation_reasons=recommendation_reasons,
+                rank=rank,
             )
             records.append(
                 {
-                    "campaign_id": f"CAMP-{match.client_id}-{match.property_id}",
+                    "campaign_id": f"CAMP-{match.client_id}-R{rank}-{match.property_id}",
                     "client_id": match.client_id,
                     "client_name": client["name"],
                     "property_id": match.property_id,
                     "property_title": display_title,
+                    "rank": rank,
                     "channel": channel,
                     "language": language,
                     "campaign_variant": self._campaign_variant(channel),
@@ -80,8 +86,9 @@ class MarketingAutomation:
 
     @staticmethod
     def _build_message(client: pd.Series, property_row: pd.Series, match, language: str) -> str:
-        """Generate a lightweight bilingual message from the best match."""
+        """Generate a lightweight bilingual message from a ranked match."""
 
+        rank = MarketingAutomation._coerce_int(getattr(match, "rank", 1)) or 1
         title = MarketingAutomation._presentation_title(
             property_row.get("title", ""),
             bedrooms=property_row.get("bedrooms", 0),
@@ -103,18 +110,20 @@ class MarketingAutomation:
         highlights_en = MarketingAutomation._highlights_english(property_row, client)
         highlights_st = MarketingAutomation._highlights_sesotho(property_row, client)
         reason_sentence_st = MarketingAutomation._reason_sentence_sesotho(recommendation_reasons)
+        bedroom_note_en = MarketingAutomation._bedroom_fit_sentence_english(client, property_row, rank)
+        bedroom_note_st = MarketingAutomation._bedroom_fit_sentence_sesotho(client, property_row, rank)
 
         if language == "st":
             return (
-                f"Lumela {client['name']}, re fumane {title} ho {place_text} ka theko ya {price_text}. "
+                f"Lumela {client['name']}, ena ke {MarketingAutomation._rank_label_sesotho(rank)}: re fumane {title} ho {place_text} ka theko ya {price_text}. "
                 f"E na le dikamore tse {int(property_row['bedrooms'])}, e boemong ba {MarketingAutomation._condition_st(condition)}, "
-                f"mme e fumaneha {MarketingAutomation._environment_st(environment)}. {reason_sentence_st}{highlights_st} "
+                f"mme e fumaneha {MarketingAutomation._environment_st(environment)}. {bedroom_note_st}{reason_sentence_st}{highlights_st} "
                 f"Tekanyo ya ho tshwana ke {match.overall_score:.2f}. Re ka o romella dintlha tse ding kapa ra hlophisa ketelo."
             )
         return (
-            f"Hi {client['name']}, we found a strong match for you: {title} in {place_text} priced at {price_text}. "
+            f"Hi {client['name']}, this is your {MarketingAutomation._rank_label_english(rank)}: {title} in {place_text} priced at {price_text}. "
             f"It offers {int(property_row['bedrooms'])} bedrooms, is in {MarketingAutomation._environment_en(environment)}, "
-            f"and is in {condition.lower()} condition. {reason_sentence_en}{highlights_en} "
+            f"and is in {condition.lower()} condition. {bedroom_note_en}{reason_sentence_en}{highlights_en} "
             f"Match score: {match.overall_score:.2f}. Reply if you would like viewing details or similar options."
         )
 
@@ -161,24 +170,29 @@ class MarketingAutomation:
         display_title: str,
         language: str,
         channel: str,
+        rank: int,
     ) -> str:
         district = str(property_row.get("district", "") or "").strip()
+        rank_label_en = MarketingAutomation._rank_label_english(rank)
+        rank_label_st = MarketingAutomation._rank_label_sesotho(rank)
         if language == "st":
             if channel == "social":
-                return f"Ntlo e loketseng wena: {display_title} ho {district}"
-            return f"{client['name']}, re o fumanetse {display_title} ho {district}"
+                return f"{rank_label_st.title()} ya ntlo: {display_title} ho {district}"
+            return f"{client['name']}, {rank_label_st}: {display_title} ho {district}"
         if channel == "social":
-            return f"Property match for you: {display_title} in {district}"
-        return f"{client['name']}, your top house match is {display_title}"
+            return f"Your {rank_label_en}: {display_title} in {district}"
+        return f"{client['name']}, your {rank_label_en} is {display_title}"
 
     @staticmethod
-    def _build_preview_text(*, property_row: pd.Series, display_title: str, language: str) -> str:
+    def _build_preview_text(*, property_row: pd.Series, display_title: str, language: str, rank: int) -> str:
         price_text = MarketingAutomation._format_currency(property_row.get("price"))
         district = str(property_row.get("district", "") or "").strip()
         bedrooms = int(float(property_row.get("bedrooms", 0) or 0))
+        rank_label_en = MarketingAutomation._rank_label_english(rank)
+        rank_label_st = MarketingAutomation._rank_label_sesotho(rank)
         if language == "st":
-            return f"{display_title}, dikamore tse {bedrooms}, {district}, theko ya {price_text}."
-        return f"{display_title} with {bedrooms} bedrooms in {district}, priced at {price_text}."
+            return f"{rank_label_st.title()}: {display_title}, dikamore tse {bedrooms}, {district}, theko ya {price_text}."
+        return f"{rank_label_en.title()}: {display_title} with {bedrooms} bedrooms in {district}, priced at {price_text}."
 
     @staticmethod
     def _build_call_to_action(language: str, channel: str) -> str:
@@ -218,10 +232,12 @@ class MarketingAutomation:
         match_score: float,
         channel: str,
         recommendation_reasons: list[str],
+        rank: int,
     ) -> float:
         channel_bonus = {"email": 0.04, "social": 0.02, "dashboard": 0.01}.get(channel, 0.0)
         evidence_bonus = min(len(recommendation_reasons), 3) * 0.03
-        return round(min(0.99, max(0.0, match_score + channel_bonus + evidence_bonus)), 4)
+        rank_penalty = max(0, rank - 1) * 0.015
+        return round(min(0.99, max(0.0, match_score + channel_bonus + evidence_bonus - rank_penalty)), 4)
 
     @staticmethod
     def _coerce_list(value: object) -> list[str]:
@@ -247,6 +263,67 @@ class MarketingAutomation:
             return int(float(value))
         except (TypeError, ValueError):
             return 0
+
+    @staticmethod
+    def _rank_label_english(rank: int) -> str:
+        labels = {
+            1: "top match",
+            2: "second choice",
+            3: "third choice",
+            4: "fourth choice",
+            5: "fifth choice",
+        }
+        return labels.get(rank, f"choice #{rank}")
+
+    @staticmethod
+    def _rank_label_sesotho(rank: int) -> str:
+        labels = {
+            1: "kgetho ya pele",
+            2: "kgetho ya bobedi",
+            3: "kgetho ya boraro",
+            4: "kgetho ya bone",
+            5: "kgetho ya bohlano",
+        }
+        return labels.get(rank, f"kgetho ya maemo a {rank}")
+
+    @staticmethod
+    def _bedroom_fit_sentence_english(client: pd.Series, property_row: pd.Series, rank: int) -> str:
+        preferred = MarketingAutomation._coerce_int(client.get("preferred_bedrooms", 0))
+        actual = MarketingAutomation._coerce_int(property_row.get("bedrooms", 0))
+        if not preferred or not actual:
+            return ""
+        if preferred == actual:
+            return f"It matches your preferred {preferred}-bedroom requirement. "
+        difference = actual - preferred
+        direction = "above" if difference > 0 else "short of"
+        plural = "bedroom" if abs(difference) == 1 else "bedrooms"
+        if rank == 1:
+            return (
+                f"Bedroom note: it has {actual} bedrooms, which is {abs(difference)} {plural} {direction} "
+                f"your preferred {preferred}, but other signals kept it competitive. "
+            )
+        return (
+            f"Bedroom note: it has {actual} bedrooms, which is {abs(difference)} {plural} {direction} "
+            f"your preferred {preferred}, so it is presented as a backup option rather than the strongest bedroom-fit choice. "
+        )
+
+    @staticmethod
+    def _bedroom_fit_sentence_sesotho(client: pd.Series, property_row: pd.Series, rank: int) -> str:
+        preferred = MarketingAutomation._coerce_int(client.get("preferred_bedrooms", 0))
+        actual = MarketingAutomation._coerce_int(property_row.get("bedrooms", 0))
+        if not preferred or not actual:
+            return ""
+        if preferred == actual:
+            return f"Palo ya dikamore e dumellana le dikamore tse {preferred} tseo o di batlang. "
+        if rank == 1:
+            return (
+                f"Tlhokomeliso ya dikamore: e na le dikamore tse {actual}, athe o kgethile tse {preferred}; "
+                "matshwao a mang a ntse a e phahamisitse. "
+            )
+        return (
+            f"Tlhokomeliso ya dikamore: e na le dikamore tse {actual}, athe o kgethile tse {preferred}; "
+            "ka hona e bontshwa e le kgetho e nngwe, eseng kgetho e matla ka palo ya dikamore. "
+        )
 
     @staticmethod
     def _environment_en(value: str) -> str:
