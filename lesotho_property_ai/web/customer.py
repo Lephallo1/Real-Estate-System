@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 import pandas as pd
 from flask import Blueprint, current_app, flash, redirect, render_template, request, session, url_for
 
@@ -19,6 +21,42 @@ from .helpers import (
 )
 
 customer_bp = Blueprint("customer", __name__, url_prefix="/customer")
+
+_NUMBER_WORDS = {
+    "zero": 0,
+    "one": 1,
+    "a": 1,
+    "two": 2,
+    "three": 3,
+    "four": 4,
+    "five": 5,
+    "six": 6,
+    "seven": 7,
+    "eight": 8,
+    "nine": 9,
+    "ten": 10,
+    "eleven": 11,
+    "twelve": 12,
+    "thirteen": 13,
+    "fourteen": 14,
+    "fifteen": 15,
+    "sixteen": 16,
+    "seventeen": 17,
+    "eighteen": 18,
+    "nineteen": 19,
+    "twenty": 20,
+    "thirty": 30,
+    "forty": 40,
+    "fourty": 40,
+    "fifty": 50,
+    "sixty": 60,
+    "seventy": 70,
+    "eighty": 80,
+    "ninety": 90,
+}
+
+_OLD_DEMO_PREFERENCE_EN = "Looking for a family house with secure parking, good condition, and access to schools."
+_OLD_DEMO_PREFERENCE_ST = "Ke batla ntlo ya lelapa e nang le parking e sireletsehileng le boemo bo botle."
 
 CUSTOMER_NAV = [
     {"label": "Search", "endpoint": "customer.search", "icon": "🔎"},
@@ -82,6 +120,81 @@ def _render_customer(template_name: str, **context):
     return render_template(template_name, **context)
 
 
+def _format_money_input(value: object) -> str:
+    if value in (None, ""):
+        return ""
+    try:
+        amount = float(value)
+    except (TypeError, ValueError):
+        return str(value)
+    whole = int(amount)
+    cents = int(round((amount - whole) * 100))
+    grouped = f"{whole:,}".replace(",", " ")
+    if cents:
+        return f"{grouped}.{cents:02d}"
+    return grouped
+
+
+def _parse_word_number(text: str) -> float | None:
+    tokens = re.findall(r"[a-z]+", text.lower().replace("-", " "))
+    if not tokens:
+        return None
+
+    total = 0.0
+    current = 0.0
+    saw_number_word = False
+    for token in tokens:
+        if token in _NUMBER_WORDS:
+            current += _NUMBER_WORDS[token]
+            saw_number_word = True
+        elif token in {"and", "ls", "lsl", "maloti", "lotis"}:
+            continue
+        elif token in {"hundred", "hunderd", "hundered"}:
+            current = max(current, 1) * 100
+            saw_number_word = True
+        elif token in {"thousand", "thousands", "k"}:
+            total += max(current, 1) * 1_000
+            current = 0
+            saw_number_word = True
+        elif token in {"million", "millions", "mil", "mi", "m"}:
+            total += max(current, 1) * 1_000_000
+            current = 0
+            saw_number_word = True
+
+    if not saw_number_word:
+        return None
+    return total + current
+
+
+def _parse_budget_amount(raw_value: str, field_label: str) -> float:
+    text = str(raw_value or "").strip()
+    if not text:
+        return 0.0
+
+    normalized = text.lower().replace(",", " ")
+    number_match = re.search(r"\d[\d\s]*(?:\.\d+)?", normalized)
+    if number_match:
+        number_text = re.sub(r"\s+", "", number_match.group(0))
+        amount = float(number_text)
+        multiplier = 1
+        after_number = normalized[number_match.end() :]
+        if re.search(r"\b(?:m|mi|mil|million|millions)\b", after_number):
+            multiplier = 1_000_000
+        elif re.search(r"\b(?:k|thousand|thousands)\b", after_number):
+            multiplier = 1_000
+        if re.search(r"\b(?:hundred|hunderd|hundered)\b\s+\b(?:k|thousand|thousands)\b", after_number):
+            multiplier = 100_000
+        return amount * multiplier
+
+    word_amount = _parse_word_number(normalized)
+    if word_amount is not None:
+        return float(word_amount)
+
+    raise ValueError(
+        f"{field_label} must be a number or money phrase, for example 1 200 000, 500k, or 4 million."
+    )
+
+
 @customer_bp.get("/")
 @role_required("customer")
 def root():
@@ -107,32 +220,48 @@ def search():
         {
             "listing_intent": "sale",
             "preferred_language": "en",
-            "budget_min": 300000,
-            "budget_max": 2500000,
+            "budget_min": "",
+            "budget_max": "",
             "preferred_bedrooms": 3,
             "preferred_districts": ["Maseru"],
             "top_n": 3,
-            "preference_en": "Looking for a family house with secure parking, good condition, and access to schools.",
-            "preference_st": "Ke batla ntlo ya lelapa e nang le parking e sireletsehileng le boemo bo botle.",
+            "preference_en": "",
+            "preference_st": "",
         },
     )
+    defaults = dict(defaults)
+    if defaults.get("preference_en") == _OLD_DEMO_PREFERENCE_EN:
+        defaults["preference_en"] = ""
+    if defaults.get("preference_st") == _OLD_DEMO_PREFERENCE_ST:
+        defaults["preference_st"] = ""
+    defaults["budget_min_display"] = _format_money_input(defaults.get("budget_min"))
+    defaults["budget_max_display"] = _format_money_input(defaults.get("budget_max"))
 
     if request.method == "POST":
         listing_intent = request.form.get("listing_intent", "sale")
         preferred_language = request.form.get("preferred_language", "en")
         preferred_districts = request.form.getlist("preferred_districts")
-        budget_min = int(request.form.get("budget_min", 0) or 0)
-        budget_max = int(request.form.get("budget_max", 0) or 0)
+        budget_min_raw = request.form.get("budget_min", "")
+        budget_max_raw = request.form.get("budget_max", "")
         preferred_bedrooms = int(request.form.get("preferred_bedrooms", 3) or 3)
         top_n = int(request.form.get("top_n", 3) or 3)
         preference_en = request.form.get("preference_en", "").strip()
         preference_st = request.form.get("preference_st", "").strip()
+        try:
+            budget_min = _parse_budget_amount(budget_min_raw, "Minimum budget")
+            budget_max = _parse_budget_amount(budget_max_raw, "Maximum budget")
+        except ValueError as exc:
+            budget_min = budget_min_raw
+            budget_max = budget_max_raw
+            flash(str(exc), "danger")
 
         defaults = {
             "listing_intent": listing_intent,
             "preferred_language": preferred_language,
             "budget_min": budget_min,
             "budget_max": budget_max,
+            "budget_min_display": _format_money_input(budget_min),
+            "budget_max_display": _format_money_input(budget_max),
             "preferred_bedrooms": preferred_bedrooms,
             "preferred_districts": preferred_districts,
             "top_n": top_n,
@@ -141,7 +270,9 @@ def search():
         }
         session["last_search_summary"] = defaults
 
-        if budget_max < budget_min:
+        if isinstance(budget_min, str) or isinstance(budget_max, str):
+            pass
+        elif budget_max < budget_min:
             flash("Maximum budget must be greater than or equal to minimum budget.", "danger")
         elif not preferred_districts:
             flash("Please choose at least one district.", "danger")

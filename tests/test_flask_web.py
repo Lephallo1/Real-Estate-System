@@ -82,6 +82,26 @@ class FlaskWebTests(unittest.TestCase):
         response = self.client.get("/customer/settings")
         self.assertEqual(response.status_code, 200)
 
+    def test_customer_search_form_starts_without_demo_text(self) -> None:
+        self._login_customer_session()
+        response = self.client.get("/customer/search")
+        body = response.get_data(as_text=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('name="budget_min"', body)
+        self.assertIn("data-money-input", body)
+        self.assertNotIn("Looking for a family house with secure parking", body)
+        self.assertNotIn("Ke batla ntlo ya lelapa e nang le parking", body)
+
+    def test_customer_budget_parser_accepts_human_money_text(self) -> None:
+        from lesotho_property_ai.web.customer import _format_money_input, _parse_budget_amount
+
+        self.assertEqual(_parse_budget_amount("1 200 000.50", "Minimum budget"), 1200000.50)
+        self.assertEqual(_parse_budget_amount("4 million", "Maximum budget"), 4000000)
+        self.assertEqual(_parse_budget_amount("1 mi", "Maximum budget"), 1000000)
+        self.assertEqual(_parse_budget_amount("500 K", "Minimum budget"), 500000)
+        self.assertEqual(_parse_budget_amount("5 hunderd thousands", "Minimum budget"), 500000)
+        self.assertEqual(_format_money_input(1200000.50), "1 200 000.50")
+
     def test_customer_search_post_redirects_to_recommendations(self) -> None:
         self._login_customer_session()
         response = self.client.post(
