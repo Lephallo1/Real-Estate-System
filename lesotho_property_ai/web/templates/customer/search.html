@@ -88,34 +88,4 @@
   </form>
 </section>
 
-<script>
-  (function() {
-    function formatMoneyText(value) {
-      const trimmed = value.trim();
-      if (!trimmed || /[a-zA-Z]/.test(trimmed)) {
-        return value;
-      }
-      const compact = trimmed.replace(/,/g, " ").replace(/\s+/g, "");
-      if (!/^\d+(?:\.\d{0,2})?$/.test(compact)) {
-        return value;
-      }
-      const parts = compact.split(".");
-      const grouped = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, " ");
-      return parts.length > 1 ? grouped + "." + parts[1] : grouped;
-    }
-
-    document.querySelectorAll("[data-money-input]").forEach(function(input) {
-      input.value = formatMoneyText(input.value);
-      input.addEventListener("input", function() {
-        const formatted = formatMoneyText(input.value);
-        if (formatted !== input.value) {
-          input.value = formatted;
-        }
-      });
-      input.addEventListener("blur", function() {
-        input.value = formatMoneyText(input.value);
-      });
-    });
-  })();
-</script>
 {% endblock %}

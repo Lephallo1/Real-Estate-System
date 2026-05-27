@@ -102,6 +102,49 @@ class FlaskWebTests(unittest.TestCase):
         self.assertEqual(_parse_budget_amount("5 hunderd thousands", "Minimum budget"), 500000)
         self.assertEqual(_format_money_input(1200000.50), "1 200 000.50")
 
+    def test_admin_nlp_form_starts_without_demo_text(self) -> None:
+        self._login_admin_session()
+        response = self.client.get("/admin/nlp-studio")
+        body = response.get_data(as_text=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('name="price"', body)
+        self.assertIn("data-money-input", body)
+        self.assertNotIn("Admin Demo", body)
+        self.assertNotIn("Modern Villa", body)
+        self.assertNotIn("1850000", body)
+        self.assertNotIn("Looking for a modern family home", body)
+        self.assertNotIn("Ke batla ntlo ya lelapa e modern", body)
+
+    def test_admin_nlp_post_accepts_human_money_text(self) -> None:
+        self._login_admin_session()
+        response = self.client.post(
+            "/admin/nlp-studio",
+            data={
+                "full_name": "Demo Buyer",
+                "title": "Modern Family House",
+                "district": "Maseru",
+                "locality": "Maseru West",
+                "price": "1.85 million",
+                "bedrooms": "3",
+                "property_type": "House",
+                "condition": "Good",
+                "environment": "Suburban",
+                "amenities": "parking, garden",
+                "language": "en",
+                "tone": "professional",
+                "channel": "email",
+                "preference_en": "Looking for secure parking and good access.",
+                "preference_st": "",
+            },
+        )
+        body = response.get_data(as_text=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Marketing copy generated successfully.", body)
+        self.assertNotIn("missing 1 required keyword-only argument: &#39;rank&#39;", body)
+        with self.client.session_transaction() as session:
+            self.assertEqual(session["nlp_demo_form"]["price"], 1850000)
+            self.assertEqual(session["nlp_demo_form"]["price_display"], "1 850 000")
+
     def test_customer_search_post_redirects_to_recommendations(self) -> None:
         self._login_customer_session()
         response = self.client.post(

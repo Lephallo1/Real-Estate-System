@@ -24,9 +24,36 @@ from .helpers import (
     recommendation_cards,
     stock_card_rows,
 )
+from .shared_utils import format_money_input, parse_budget_amount
 from .task_actions import action_choices, read_action_job, start_action_job
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
+
+_OLD_NLP_DEMO_DEFAULTS = {
+    "full_name": "Admin Demo",
+    "title": "Modern Villa",
+    "district": "Maseru",
+    "locality": "Maseru West",
+    "price": 1850000,
+    "bedrooms": 3,
+    "property_type": "House",
+    "condition": "Good",
+    "environment": "Suburban",
+    "amenities": "parking, garden",
+    "preference_en": "Looking for a modern family home with secure parking and good access.",
+    "preference_st": "Ke batla ntlo ya lelapa e modern e nang le parking e sireletsehileng.",
+}
+
+
+def _is_old_nlp_demo_form(values: dict[str, object]) -> bool:
+    if not values:
+        return False
+    for key, old_value in _OLD_NLP_DEMO_DEFAULTS.items():
+        current = values.get(key)
+        if current in (old_value, str(old_value)):
+            continue
+        return False
+    return True
 
 
 @admin_bp.get("/access")
@@ -452,66 +479,93 @@ def vision_nlp():
 def nlp_studio():
     prefill = session.get("vision_nlp_prefill", {}) if request.args.get("prefill") == "vision" else {}
     saved_defaults = session.get("nlp_demo_form", {})
+    if _is_old_nlp_demo_form(saved_defaults):
+        saved_defaults = {}
+        session.pop("nlp_demo_form", None)
+        session.pop("nlp_demo_output", None)
+    has_prefill = bool(prefill)
     defaults = {
-        "full_name": saved_defaults.get("full_name", "Admin Demo"),
-        "title": saved_defaults.get("title", prefill.get("title", "Modern Villa")),
-        "district": saved_defaults.get("district", prefill.get("district", "Maseru")),
-        "locality": saved_defaults.get("locality", prefill.get("locality", "Maseru West")),
-        "price": saved_defaults.get("price", prefill.get("price", 1850000)),
-        "bedrooms": saved_defaults.get("bedrooms", prefill.get("bedrooms", 3)),
-        "property_type": saved_defaults.get("property_type", prefill.get("property_type", "House")),
-        "condition": saved_defaults.get("condition", prefill.get("condition", "Good")),
-        "environment": saved_defaults.get("environment", prefill.get("environment", "Suburban")),
-        "amenities": saved_defaults.get("amenities", prefill.get("amenities", "parking, garden")),
-        "preference_en": saved_defaults.get("preference_en", "Looking for a modern family home with secure parking and good access."),
-        "preference_st": saved_defaults.get("preference_st", "Ke batla ntlo ya lelapa e modern e nang le parking e sireletsehileng."),
+        "full_name": saved_defaults.get("full_name", ""),
+        "title": saved_defaults.get("title", prefill.get("title", "") if has_prefill else ""),
+        "district": saved_defaults.get("district", prefill.get("district", "") if has_prefill else ""),
+        "locality": saved_defaults.get("locality", prefill.get("locality", "") if has_prefill else ""),
+        "price": saved_defaults.get("price", prefill.get("price", "") if has_prefill else ""),
+        "bedrooms": saved_defaults.get("bedrooms", prefill.get("bedrooms", "") if has_prefill else ""),
+        "property_type": saved_defaults.get("property_type", prefill.get("property_type", "") if has_prefill else ""),
+        "condition": saved_defaults.get("condition", prefill.get("condition", "") if has_prefill else ""),
+        "environment": saved_defaults.get("environment", prefill.get("environment", "") if has_prefill else ""),
+        "amenities": saved_defaults.get("amenities", prefill.get("amenities", "") if has_prefill else ""),
+        "preference_en": saved_defaults.get("preference_en", ""),
+        "preference_st": saved_defaults.get("preference_st", ""),
         "language": saved_defaults.get("language", "en"),
         "tone": saved_defaults.get("tone", "professional"),
         "channel": saved_defaults.get("channel", "email"),
     }
+    defaults["price_display"] = format_money_input(defaults.get("price"))
     nlp_result = session.get("nlp_demo_output")
 
     if request.method == "POST":
+        price_raw = request.form.get("price", "")
+        has_validation_error = False
+        try:
+            price = parse_budget_amount(price_raw, "Price")
+        except ValueError as exc:
+            price = price_raw
+            has_validation_error = True
+            flash(str(exc), "danger")
+        bedrooms_raw = request.form.get("bedrooms", "").strip()
+        try:
+            bedrooms = int(bedrooms_raw or 0)
+        except ValueError:
+            bedrooms = 0
+            has_validation_error = True
+            flash("Bedrooms must be a whole number, for example 3 or 4.", "danger")
         defaults = {
-            "full_name": request.form.get("full_name", "Admin Demo").strip(),
-            "title": request.form.get("title", "Modern Villa").strip(),
-            "district": request.form.get("district", "Maseru").strip(),
-            "locality": request.form.get("locality", "Maseru West").strip(),
-            "price": int(request.form.get("price", 0) or 0),
-            "bedrooms": int(request.form.get("bedrooms", 3) or 3),
+            "full_name": request.form.get("full_name", "").strip(),
+            "title": request.form.get("title", "").strip(),
+            "district": request.form.get("district", "").strip(),
+            "locality": request.form.get("locality", "").strip(),
+            "price": price,
+            "price_display": format_money_input(price),
+            "bedrooms": bedrooms,
             "property_type": request.form.get("property_type", "House").strip() or "House",
             "condition": request.form.get("condition", "Good").strip() or "Good",
             "environment": request.form.get("environment", "Suburban").strip() or "Suburban",
-            "amenities": request.form.get("amenities", "parking, garden").strip(),
+            "amenities": request.form.get("amenities", "").strip(),
             "preference_en": request.form.get("preference_en", "").strip(),
             "preference_st": request.form.get("preference_st", "").strip(),
             "language": request.form.get("language", "en").strip() or "en",
             "tone": request.form.get("tone", "professional").strip() or "professional",
             "channel": request.form.get("channel", "email").strip() or "email",
         }
-        try:
-            nlp_result = generate_nlp_demo_output(
-                full_name=defaults["full_name"],
-                title=defaults["title"],
-                district=defaults["district"],
-                locality=defaults["locality"],
-                price=defaults["price"],
-                bedrooms=defaults["bedrooms"],
-                property_type=defaults["property_type"],
-                condition=defaults["condition"],
-                environment=defaults["environment"],
-                amenities=[item.strip() for item in defaults["amenities"].split(",") if item.strip()],
-                preference_en=defaults["preference_en"],
-                preference_st=defaults["preference_st"],
-                language=defaults["language"],
-                tone=defaults["tone"],
-                channel=defaults["channel"],
-            )
+        if has_validation_error:
             session["nlp_demo_form"] = defaults
-            session["nlp_demo_output"] = nlp_result
-            flash("Marketing copy generated successfully.", "success")
-        except Exception as exc:
-            flash(f"NLP Studio could not generate the message: {exc}", "danger")
+            session.pop("nlp_demo_output", None)
+            nlp_result = None
+        else:
+            try:
+                nlp_result = generate_nlp_demo_output(
+                    full_name=defaults["full_name"],
+                    title=defaults["title"],
+                    district=defaults["district"],
+                    locality=defaults["locality"],
+                    price=defaults["price"],
+                    bedrooms=defaults["bedrooms"],
+                    property_type=defaults["property_type"],
+                    condition=defaults["condition"],
+                    environment=defaults["environment"],
+                    amenities=[item.strip() for item in defaults["amenities"].split(",") if item.strip()],
+                    preference_en=defaults["preference_en"],
+                    preference_st=defaults["preference_st"],
+                    language=defaults["language"],
+                    tone=defaults["tone"],
+                    channel=defaults["channel"],
+                )
+                session["nlp_demo_form"] = defaults
+                session["nlp_demo_output"] = nlp_result
+                flash("Marketing copy generated successfully.", "success")
+            except Exception as exc:
+                flash(f"NLP Studio could not generate the message: {exc}", "danger")
 
     nlp_metrics = load_artifact_json("house_nlp_metrics.json")
     nlp_queries = load_artifact_csv("house_nlp_query_results.csv")

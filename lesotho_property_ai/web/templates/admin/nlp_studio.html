@@ -19,43 +19,43 @@
     <form method="post" class="search-form-grid">
       <div class="form-group">
         <label>Recipient / client name</label>
-        <input type="text" name="full_name" value="{{ defaults.full_name }}">
+        <input type="text" name="full_name" value="{{ defaults.full_name }}" placeholder="Enter client name">
       </div>
       <div class="form-group">
         <label>Property title</label>
-        <input type="text" name="title" value="{{ defaults.title }}">
+        <input type="text" name="title" value="{{ defaults.title }}" placeholder="Enter property title">
       </div>
       <div class="form-group">
         <label>District</label>
-        <input type="text" name="district" value="{{ defaults.district }}">
+        <input type="text" name="district" value="{{ defaults.district }}" placeholder="Enter district">
       </div>
       <div class="form-group">
         <label>Locality</label>
-        <input type="text" name="locality" value="{{ defaults.locality }}">
+        <input type="text" name="locality" value="{{ defaults.locality }}" placeholder="Enter locality">
       </div>
       <div class="form-group">
         <label>Price (LSL)</label>
-        <input type="number" name="price" value="{{ defaults.price }}">
+        <input type="text" name="price" value="{{ defaults.price_display }}" inputmode="decimal" data-money-input placeholder="e.g. 1 850 000 or 1.85 million">
       </div>
       <div class="form-group">
         <label>Bedrooms</label>
-        <input type="number" name="bedrooms" value="{{ defaults.bedrooms }}">
+        <input type="number" name="bedrooms" value="{{ defaults.bedrooms }}" placeholder="e.g. 3">
       </div>
       <div class="form-group">
         <label>Property type</label>
-        <input type="text" name="property_type" value="{{ defaults.property_type }}">
+        <input type="text" name="property_type" value="{{ defaults.property_type }}" placeholder="e.g. House">
       </div>
       <div class="form-group">
         <label>Condition</label>
-        <input type="text" name="condition" value="{{ defaults.condition }}">
+        <input type="text" name="condition" value="{{ defaults.condition }}" placeholder="e.g. Good">
       </div>
       <div class="form-group">
         <label>Environment</label>
-        <input type="text" name="environment" value="{{ defaults.environment }}">
+        <input type="text" name="environment" value="{{ defaults.environment }}" placeholder="e.g. Suburban">
       </div>
       <div class="form-group">
         <label>Amenities</label>
-        <input type="text" name="amenities" value="{{ defaults.amenities }}">
+        <input type="text" name="amenities" value="{{ defaults.amenities }}" placeholder="parking, garden, garage">
       </div>
       <div class="form-group">
         <label>Language</label>
@@ -82,11 +82,11 @@
       </div>
       <div class="form-group full">
         <label>English preference</label>
-        <textarea name="preference_en">{{ defaults.preference_en }}</textarea>
+        <textarea name="preference_en" placeholder="Describe what the client wants in English">{{ defaults.preference_en }}</textarea>
       </div>
       <div class="form-group full">
         <label>Sesotho preference</label>
-        <textarea name="preference_st">{{ defaults.preference_st }}</textarea>
+        <textarea name="preference_st" placeholder="Ngola ditlhoko tsa moreki ka Sesotho">{{ defaults.preference_st }}</textarea>
       </div>
       <div class="form-group full">
         <button type="submit" class="primary-btn">Generate marketing text</button>

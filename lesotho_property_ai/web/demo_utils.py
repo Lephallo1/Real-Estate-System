@@ -127,7 +127,7 @@ def generate_nlp_demo_output(
     title: str,
     district: str,
     locality: str,
-    price: int,
+    price: int | float,
     bedrooms: int,
     property_type: str,
     condition: str,
@@ -144,7 +144,7 @@ def generate_nlp_demo_output(
     marketer = MarketingAutomation()
     client = pd.Series(
         {
-            "name": full_name or "Admin Demo",
+            "name": full_name or "Client",
             "preferred_language": language,
             "preferred_channels": [channel],
             "free_text_preference_en": preference_en,
@@ -165,6 +165,7 @@ def generate_nlp_demo_output(
         }
     )
     match = SimpleNamespace(
+        rank=1,
         overall_score=0.91,
         recommendation_reasons=[
             "bedroom layout is a strong fit",
@@ -193,11 +194,13 @@ def generate_nlp_demo_output(
         display_title=title_text,
         language=language,
         channel=channel,
+        rank=1,
     )
     preview_text = marketer._build_preview_text(
         property_row=property_row,
         display_title=title_text,
         language=language,
+        rank=1,
     )
     call_to_action = marketer._build_call_to_action(language, channel)
     tone_summary = classify_message_tone(message, tone)
