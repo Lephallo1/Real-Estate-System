@@ -183,6 +183,55 @@ class FlaskWebTests(unittest.TestCase):
                 response = self.client.get(route)
                 self.assertEqual(response.status_code, 200)
 
+    def test_campaigns_page_uses_live_recommendation_runs(self) -> None:
+        import pandas as pd
+
+        self._login_admin_session()
+        live_bundle = {
+            "campaigns": pd.DataFrame(
+                [
+                    {
+                        "client_name": "Live Buyer",
+                        "property_title": "3-Bedroom House",
+                        "channel": "email",
+                        "language": "en",
+                        "campaign_variant": "direct",
+                        "delivery_state": "queued",
+                        "estimated_engagement_score": 0.82,
+                        "subject_line": "Live buyer match",
+                        "preview_text": "A fresh live recommendation is ready.",
+                        "message": "This message came from live customer activity.",
+                        "call_to_action": "Open live match",
+                        "match_score": 0.91,
+                        "recommended_send_window": "Today",
+                    }
+                ]
+            ),
+            "marketing": {
+                "campaigns_generated": 1,
+                "mean_match_score": 0.91,
+                "mean_estimated_engagement_score": 0.82,
+                "variant_counts": {"direct": 1},
+            },
+        }
+        with patch(
+            "lesotho_property_ai.web.admin.fetch_top_recommendation_runs",
+            return_value=[
+                {
+                    "id": 42,
+                    "full_name": "Live Buyer",
+                    "artifact_prefix": "house_user_1_live",
+                    "mean_top_match_score": 0.91,
+                }
+            ],
+        ), patch("lesotho_property_ai.web.admin.load_recommendation_bundle", return_value=live_bundle):
+            response = self.client.get("/admin/campaigns")
+        body = response.get_data(as_text=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Live Buyer", body)
+        self.assertIn("Live buyer match", body)
+        self.assertIn("This message came from live customer activity.", body)
+
     def test_vision_page_renders_scene_description_row(self) -> None:
         self._login_admin_session()
         with self.client.session_transaction() as session:

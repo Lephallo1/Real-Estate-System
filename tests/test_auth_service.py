@@ -10,8 +10,9 @@ from lesotho_property_ai import auth_service
 
 
 class _FakeCursor:
-    def __init__(self, *, fetchone_result=None, lastrowid: int = 1) -> None:
+    def __init__(self, *, fetchone_result=None, fetchall_result=None, lastrowid: int = 1) -> None:
         self.fetchone_result = fetchone_result
+        self.fetchall_result = fetchall_result or []
         self.lastrowid = lastrowid
         self.executed: list[tuple[str, tuple | None]] = []
         self.closed = False
@@ -21,6 +22,9 @@ class _FakeCursor:
 
     def fetchone(self):
         return self.fetchone_result
+
+    def fetchall(self):
+        return self.fetchall_result
 
     def close(self):
         self.closed = True
@@ -171,6 +175,27 @@ class AuthServiceTests(unittest.TestCase):
         self.assertTrue(connection.committed)
         self.assertEqual(len(cursor.executed), 1)
         self.assertIn("INSERT INTO recommendation_runs", cursor.executed[0][0])
+
+    def test_fetch_top_recommendation_runs_orders_live_customer_runs(self) -> None:
+        cursor = _FakeCursor(
+            fetchall_result=[
+                {
+                    "id": 5,
+                    "full_name": "Customer Demo",
+                    "artifact_prefix": "house_user_7_abcd1234",
+                    "mean_top_match_score": 0.91,
+                    "matches_generated": 3,
+                }
+            ]
+        )
+        connection = _FakeConnection(cursor)
+
+        rows = auth_service.fetch_top_recommendation_runs(connection_factory=lambda: connection)
+
+        self.assertEqual(rows[0]["artifact_prefix"], "house_user_7_abcd1234")
+        self.assertIn("FROM recommendation_runs rr", cursor.executed[0][0])
+        self.assertIn("ORDER BY rr.mean_top_match_score DESC", cursor.executed[0][0])
+        self.assertEqual(cursor.executed[0][1], (6,))
 
     def test_register_customer_user_creates_customer_account(self) -> None:
         cursor = _FakeCursor(fetchone_result=None, lastrowid=14)

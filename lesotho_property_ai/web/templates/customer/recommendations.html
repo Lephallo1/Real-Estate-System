@@ -56,4 +56,27 @@
     {% include "partials/property_card.html" %}
   {% endfor %}
 </section>
+
+{% if not cards %}
+  <section class="panel-card">
+    <div class="panel-head"><h2>No exact matches found</h2></div>
+    <p class="panel-copy">The model did not find a house that satisfies your maximum budget, selected district, and exact bedroom count at the same time. Try raising the budget, choosing another district, or changing the bedroom count.</p>
+  </section>
+{% endif %}
+
+{% if near_cards %}
+  <details class="accordion">
+    <summary>Open near matches with a different bedroom count</summary>
+    <div class="accordion-body">
+      <p class="panel-copy">These homes still respect your budget and district, but they differ from the exact bedroom number you requested.</p>
+      <div class="property-grid compact">
+        {% for card in near_cards %}
+          {% set property = card.property %}
+          {% set detail_href = none %}
+          {% include "partials/property_card.html" %}
+        {% endfor %}
+      </div>
+    </div>
+  </details>
+{% endif %}
 {% endblock %}

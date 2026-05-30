@@ -114,7 +114,7 @@ def login():
                     "full_name": result.user.full_name,
                     "role": result.user.role,
                     "customer_has_results": False,
-                    "last_recommendation_prefix": "house_user_input",
+                    "last_recommendation_prefix": "",
                 }
             )
             flash("Signed in successfully.", "success")

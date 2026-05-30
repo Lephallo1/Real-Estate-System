@@ -17,10 +17,10 @@
   <article class="stat-card"><div class="stat-label">Variants</div><div class="stat-value">{{ marketing.get('variant_counts', {})|length }}</div></article>
 </section>
 
-{% if client_names %}
+{% if client_choices %}
   <div class="chip-row">
-    {% for client_name in client_names %}
-      <a class="chip {% if client_name == selected_client %}active{% endif %}" href="{{ url_for('admin.campaigns', client=client_name) }}">{{ client_name }}</a>
+    {% for choice in client_choices %}
+      <a class="chip {% if choice.run_id == selected_run_id %}active{% endif %}" href="{{ url_for('admin.campaigns', run=choice.run_id) }}">{{ choice.label }}</a>
     {% endfor %}
   </div>
 {% endif %}
@@ -46,7 +46,7 @@
         <p>{{ preview.call_to_action }}</p>
       </div>
     {% else %}
-      <p class="panel-copy">No campaign preview is available yet. Refresh the recommendation flow first.</p>
+      <p class="panel-copy">No live campaign preview is available yet. Ask a customer to run a recommendation search first, then this page will show that customer's generated campaign copy.</p>
     {% endif %}
   </article>
 

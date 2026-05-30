@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from uuid import uuid4
+
 import pandas as pd
 from flask import Blueprint, current_app, flash, redirect, render_template, request, session, url_for
 
@@ -62,6 +64,11 @@ def _stock_summary(frame: pd.DataFrame) -> dict[str, int]:
     }
 
 
+def _new_recommendation_prefix() -> str:
+    user_id = session.get("user_id", "guest")
+    return f"house_user_{user_id}_{uuid4().hex[:8]}"
+
+
 def _customer_sidebar_groups() -> list[dict[str, object]]:
     items = [dict(item) for item in CUSTOMER_NAV]
     try:
@@ -72,7 +79,7 @@ def _customer_sidebar_groups() -> list[dict[str, object]]:
         stock_counts = {"total": 0}
     if session.get("customer_has_results"):
         try:
-            bundle = load_recommendation_bundle(session.get("last_recommendation_prefix", "house_user_input"))
+            bundle = load_recommendation_bundle(session.get("last_recommendation_prefix", ""))
             items[2]["badge"] = int(bundle.get("metrics", {}).get("recommendation", {}).get("matches_generated", 0))
         except Exception:
             pass
@@ -166,6 +173,8 @@ def search():
             pass
         elif budget_max < budget_min:
             flash("Maximum budget must be greater than or equal to minimum budget.", "danger")
+        elif budget_max <= 0:
+            flash("Please enter a maximum budget so the model can strictly protect your price range.", "danger")
         elif not preferred_districts:
             flash("Please choose at least one district.", "danger")
         else:
@@ -204,18 +213,40 @@ def search():
                 flash(f"MySQL search logging did not complete: {exc}", "warning")
 
             try:
+                artifact_prefix = _new_recommendation_prefix()
                 result = run_house_recommendation_for_clients(
                     base_dir=current_app.config["BASE_DIR"],
                     clients=custom_client,
                     top_n=top_n,
                     listing_intent=listing_intent,
                     strict_house_only=True,
-                    artifact_prefix="house_user_input",
+                    artifact_prefix=artifact_prefix,
+                    constraint_mode="strict",
                 )
             except Exception as exc:
                 session["customer_has_results"] = False
+                session.pop("last_near_recommendation_prefix", None)
                 flash(f"The matching engine could not complete the request: {exc}", "danger")
             else:
+                near_result = None
+                near_prefix = None
+                matches_generated = int(result.metrics["recommendation"].get("matches_generated", 0))
+                if matches_generated < top_n:
+                    try:
+                        near_prefix = f"{artifact_prefix}_near"
+                        near_result = run_house_recommendation_for_clients(
+                            base_dir=current_app.config["BASE_DIR"],
+                            clients=custom_client,
+                            top_n=max(top_n, 5),
+                            listing_intent=listing_intent,
+                            strict_house_only=True,
+                            artifact_prefix=near_prefix,
+                            constraint_mode="near",
+                        )
+                    except Exception:
+                        near_result = None
+                        near_prefix = None
+
                 try:
                     record_recommendation_run(
                         int(session["user_id"]),
@@ -223,16 +254,33 @@ def search():
                         top_n=top_n,
                         listing_intent=listing_intent,
                         properties_considered=int(result.metrics["recommendation"].get("properties_considered", 0)),
-                        matches_generated=int(result.metrics["recommendation"].get("matches_generated", 0)),
+                        matches_generated=matches_generated,
                         mean_top_match_score=float(result.metrics["recommendation"].get("mean_top_match_score", 0.0)),
-                        artifact_prefix="house_user_input",
+                        artifact_prefix=artifact_prefix,
                     )
                 except Exception as exc:
                     flash(f"MySQL recommendation logging did not complete: {exc}", "warning")
 
                 session["customer_has_results"] = True
-                session["last_recommendation_prefix"] = "house_user_input"
-                flash("Your recommendations are ready.", "success")
+                session["last_recommendation_prefix"] = artifact_prefix
+                near_matches_generated = (
+                    int(near_result.metrics["recommendation"].get("matches_generated", 0))
+                    if near_result is not None
+                    else 0
+                )
+                if near_prefix and near_matches_generated:
+                    session["last_near_recommendation_prefix"] = near_prefix
+                else:
+                    session.pop("last_near_recommendation_prefix", None)
+                if matches_generated:
+                    flash("Your strict recommendations are ready.", "success")
+                elif near_matches_generated:
+                    flash(
+                        "No exact bedroom match was found inside your budget and district. Near-bedroom options are available separately.",
+                        "warning",
+                    )
+                else:
+                    flash("No exact matches found. Try raising your budget or changing the district/bedroom filters.", "warning")
                 return redirect(url_for("customer.recommendations"))
 
     return _render_customer(
@@ -271,8 +319,15 @@ def recommendations():
         flash("Run a search first to generate recommendations.", "info")
         return redirect(url_for("customer.search"))
 
-    bundle = load_recommendation_bundle(session.get("last_recommendation_prefix", "house_user_input"))
+    bundle = load_recommendation_bundle(session.get("last_recommendation_prefix", ""))
     cards = recommendation_cards(bundle, single_client=True)
+    near_cards = []
+    near_prefix = session.get("last_near_recommendation_prefix")
+    if near_prefix:
+        try:
+            near_cards = recommendation_cards(load_recommendation_bundle(near_prefix), single_client=True)
+        except Exception:
+            near_cards = []
     return _render_customer(
         "customer/recommendations.html",
         page_title="Recommended Homes",
@@ -282,6 +337,7 @@ def recommendations():
         fusion=bundle.get("fusion", {}),
         marketing=bundle.get("marketing", {}),
         search_summary=session.get("last_search_summary", {}),
+        near_cards=near_cards,
     )
 
 
@@ -292,7 +348,7 @@ def property_detail(property_id: str):
         flash("Run a search first to inspect a matched home.", "info")
         return redirect(url_for("customer.search"))
 
-    bundle = load_recommendation_bundle(session.get("last_recommendation_prefix", "house_user_input"))
+    bundle = load_recommendation_bundle(session.get("last_recommendation_prefix", ""))
     cards = recommendation_cards(bundle, single_client=True)
     selected = next((card for card in cards if card["property_id"] == property_id), None)
     if not selected:
@@ -310,7 +366,7 @@ def property_detail(property_id: str):
 @customer_bp.get("/why-this-match")
 @role_required("customer")
 def property_detail_placeholder():
-    bundle = load_recommendation_bundle(session.get("last_recommendation_prefix", "house_user_input"))
+    bundle = load_recommendation_bundle(session.get("last_recommendation_prefix", ""))
     cards = recommendation_cards(bundle, single_client=True)
     if cards:
         return redirect(url_for("customer.property_detail", property_id=cards[0]["property_id"]))
@@ -321,7 +377,7 @@ def property_detail_placeholder():
 @customer_bp.get("/settings")
 @role_required("customer")
 def settings():
-    bundle = load_recommendation_bundle(session.get("last_recommendation_prefix", "house_user_input")) if session.get("customer_has_results") else {}
+    bundle = load_recommendation_bundle(session.get("last_recommendation_prefix", "")) if session.get("customer_has_results") else {}
     recommendation_metrics = bundle.get("metrics", {}).get("recommendation", {}) if bundle else {}
     search_summary = session.get("last_search_summary", {})
     stock_counts = _stock_summary(load_stock_frame())

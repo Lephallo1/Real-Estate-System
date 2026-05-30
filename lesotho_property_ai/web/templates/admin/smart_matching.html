@@ -19,8 +19,8 @@
 </section>
 
 <div class="chip-row">
-  {% for client_name in client_names %}
-    <a class="chip {% if client_name == selected_client %}active{% endif %}" href="{{ url_for('admin.smart_matching', client=client_name) }}">{{ client_name }}</a>
+  {% for choice in client_choices %}
+    <a class="chip {% if choice.run_id == selected_run_id %}active{% endif %}" href="{{ url_for('admin.smart_matching', run=choice.run_id) }}">{{ choice.label }}</a>
   {% endfor %}
 </div>
 
@@ -60,7 +60,7 @@
   </section>
 {% else %}
   <section class="panel-card">
-    <p class="panel-copy">No smart matching output is available yet. Refresh the recommendation run from the quick actions first.</p>
+    <p class="panel-copy">No live customer smart matching output is available yet. Ask a customer account to run a search, then this panel will show the best six live runs.</p>
   </section>
 {% endif %}
 

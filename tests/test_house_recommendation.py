@@ -299,6 +299,101 @@ class HouseRecommendationPipelineTests(unittest.TestCase):
             result.matches.iloc[0]["recommendation_reasons"],
         )
 
+    def test_strict_customer_constraints_require_budget_district_and_exact_bedrooms(self) -> None:
+        case_dir = self._workspace_case_dir()
+        image_dir = case_dir / "images"
+        image_dir.mkdir(parents=True, exist_ok=True)
+
+        rows: list[dict[str, object]] = []
+        samples = [
+            ("exact-house", "Maseru", 3, 750000),
+            ("wrong-bedroom-house", "Maseru", 4, 700000),
+            ("wrong-district-house", "Berea", 3, 650000),
+            ("over-budget-house", "Maseru", 3, 1200000),
+        ]
+        for property_id, district, bedrooms, price in samples:
+            property_dir = image_dir / property_id
+            property_dir.mkdir(parents=True, exist_ok=True)
+            image_path = property_dir / "front.png"
+            Image.new("RGB", (64, 64), color=(120, 100, 80)).save(image_path)
+            rows.append(
+                {
+                    "property_id": property_id,
+                    "source": "unit-test",
+                    "title": f"{bedrooms} bedroom house in {district}",
+                    "description_en": f"Family house in {district} with parking.",
+                    "description_st": f"Ntlo ya lelapa {district} e nang le parking.",
+                    "price": price,
+                    "currency": "LSL",
+                    "district": district,
+                    "location_text": district,
+                    "property_type": "House",
+                    "bedrooms": bedrooms,
+                    "bathrooms": 2,
+                    "image_paths": [str(image_path)],
+                    "listing_url": f"https://example.com/{property_id}",
+                    "condition": "Good",
+                    "style": "Modern",
+                    "environment": "Suburban",
+                    "amenities": ["parking"],
+                    "listing_intent": "sale",
+                    "country": "Lesotho",
+                    "district_canonical": district,
+                    "cnn_property_type": "House",
+                    "cnn_bedroom_class": str(bedrooms),
+                    "split": "train",
+                    "cnn_exclusion_reasons": "",
+                    "is_residential_curated": True,
+                    "is_cnn_candidate": True,
+                }
+            )
+
+        input_csv = case_dir / "properties_residential_cnn_candidates.csv"
+        save_dataframe(pd.DataFrame(rows), input_csv, json_columns=("image_paths", "amenities"))
+        clients = pd.DataFrame(
+            [
+                {
+                    "client_id": "USER-STRICT",
+                    "name": "Strict Buyer",
+                    "budget_min": 500000,
+                    "budget_max": 900000,
+                    "preferred_districts": ["Maseru"],
+                    "preferred_property_types": ["House"],
+                    "preferred_bedrooms": 3,
+                    "free_text_preference_en": "Need a family house with parking.",
+                    "free_text_preference_st": "",
+                    "preferred_language": "en",
+                    "preferred_channels": ["dashboard"],
+                }
+            ]
+        )
+
+        result = run_house_recommendation_for_clients(
+            base_dir=case_dir,
+            clients=clients,
+            input_csv=input_csv,
+            top_n=5,
+            listing_intent="sale",
+            strict_house_only=True,
+            artifact_prefix="strict_user_input",
+            constraint_mode="strict",
+        )
+
+        self.assertEqual(result.matches["property_id"].tolist(), ["exact-house"])
+
+        near_result = run_house_recommendation_for_clients(
+            base_dir=case_dir,
+            clients=clients,
+            input_csv=input_csv,
+            top_n=5,
+            listing_intent="sale",
+            strict_house_only=True,
+            artifact_prefix="strict_user_input_near",
+            constraint_mode="near",
+        )
+
+        self.assertEqual(near_result.matches["property_id"].tolist(), ["wrong-bedroom-house"])
+
     def test_house_recommendation_filters_noisy_rows_and_normalizes_titles(self) -> None:
         case_dir = self._workspace_case_dir()
         image_dir = case_dir / "images"

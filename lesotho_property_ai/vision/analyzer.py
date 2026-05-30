@@ -13,6 +13,7 @@ import os
 import pickle
 import urllib.request
 import base64
+import tomllib
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -49,6 +50,28 @@ NON_PROPERTY_HINT_KEYWORDS = (
     "television",
     "web site",
 )
+
+
+def _local_secret_value(*names: str) -> str:
+    """Read optional local-only secrets for terminal demo runs."""
+
+    secrets_path = PROJECT_ROOT / ".flask" / "secrets.toml"
+    if not secrets_path.exists():
+        return ""
+    try:
+        with secrets_path.open("rb") as handle:
+            secrets = tomllib.load(handle)
+    except Exception:
+        return ""
+
+    nested = secrets.get("vision") if isinstance(secrets, dict) else {}
+    if not isinstance(nested, dict):
+        nested = {}
+    for name in names:
+        value = secrets.get(name) or nested.get(name)
+        if value:
+            return str(value).strip()
+    return ""
 UPLOAD_SCOPE_FIELDS = (
     "cnn_property_type",
     "cnn_bedroom_class",
@@ -405,7 +428,11 @@ class PropertyVisionAnalyzer:
     def _analyze_image_with_gemini(image_path: Path) -> dict[str, Any] | None:
         """Use Gemini Vision first when a Google AI Studio key is available."""
 
-        api_key = os.environ.get("GEMINI_API_KEY", "").strip() or os.environ.get("GOOGLE_API_KEY", "").strip()
+        api_key = (
+            os.environ.get("GEMINI_API_KEY", "").strip()
+            or os.environ.get("GOOGLE_API_KEY", "").strip()
+            or _local_secret_value("GEMINI_API_KEY", "GOOGLE_API_KEY")
+        )
         if not api_key:
             return None
 
@@ -487,7 +514,7 @@ class PropertyVisionAnalyzer:
     def _analyze_image_with_claude(image_path: Path) -> dict[str, Any] | None:
         """Use Claude Vision when an Anthropic API key is available."""
 
-        api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+        api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip() or _local_secret_value("ANTHROPIC_API_KEY")
         if not api_key:
             return None
 

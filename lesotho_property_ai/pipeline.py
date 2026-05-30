@@ -264,6 +264,7 @@ def _run_house_recommendation_pipeline(
     top_n: int,
     artifact_prefix: str,
     extra_metrics: dict[str, object] | None = None,
+    constraint_mode: str = "soft",
 ) -> PipelineResult:
     """Run the main multimodal recommendation flow on already-prepared inputs."""
     vision = PropertyVisionAnalyzer().analyze(properties)
@@ -282,7 +283,7 @@ def _run_house_recommendation_pipeline(
             vision=config.vision_weight,
         ),
     )
-    matches = matcher.rank_for_all_clients(properties, clients, top_n=top_n)
+    matches = matcher.rank_for_all_clients(properties, clients, top_n=top_n, constraint_mode=constraint_mode)
 
     marketer = MarketingAutomation()
     campaigns = marketer.generate(matches, properties, clients)
@@ -334,6 +335,7 @@ def _run_house_recommendation_pipeline(
         "matches_generated": int(len(matches)),
         "campaigns_generated": int(len(campaigns)),
         "top_n": int(top_n),
+        "constraint_mode": constraint_mode,
         "mean_top_match_score": round(float(top_matches["overall_score"].mean()), 4)
         if not top_matches.empty
         else 0.0,
@@ -555,6 +557,7 @@ def run_house_recommendation_for_clients(
     listing_intent: str = "sale",
     strict_house_only: bool = True,
     artifact_prefix: str = "house_user_input",
+    constraint_mode: str = "soft",
 ) -> PipelineResult:
     config = AppConfig.from_base_dir(Path(base_dir))
     config.ensure_directories()
@@ -573,6 +576,7 @@ def run_house_recommendation_for_clients(
         top_n=top_n,
         artifact_prefix=artifact_prefix,
         extra_metrics=inventory_metrics,
+        constraint_mode=constraint_mode,
     )
 
 

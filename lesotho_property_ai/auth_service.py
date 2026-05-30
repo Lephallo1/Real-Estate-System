@@ -338,6 +338,56 @@ def record_recommendation_run(
         connection.close()
 
 
+def fetch_top_recommendation_runs(
+    *,
+    limit: int = 6,
+    app_secrets: Mapping[str, Any] | None = None,
+    connection_factory: ConnectionFactory | None = None,
+) -> list[dict[str, Any]]:
+    """Fetch the best recent customer recommendation runs for the admin Smart Matching view."""
+
+    factory = connection_factory or _default_connection_factory(app_secrets)
+    connection = factory()
+    cursor = connection.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            """
+            SELECT
+                rr.id,
+                rr.user_id,
+                rr.search_request_id,
+                rr.top_n,
+                rr.listing_intent,
+                rr.properties_considered,
+                rr.matches_generated,
+                rr.mean_top_match_score,
+                rr.artifact_prefix,
+                rr.created_at,
+                u.full_name,
+                u.email,
+                csr.budget_min,
+                csr.budget_max,
+                csr.preferred_districts,
+                csr.preferred_bedrooms,
+                csr.preferred_language
+            FROM recommendation_runs rr
+            JOIN users u ON u.id = rr.user_id
+            LEFT JOIN customer_search_requests csr ON csr.id = rr.search_request_id
+            WHERE rr.artifact_prefix IS NOT NULL
+              AND rr.artifact_prefix <> ''
+              AND rr.matches_generated > 0
+            ORDER BY rr.mean_top_match_score DESC, rr.created_at DESC
+            LIMIT %s
+            """,
+            (limit,),
+        )
+        rows = cursor.fetchall() or []
+        return [dict(row) for row in rows]
+    finally:
+        cursor.close()
+        connection.close()
+
+
 def fetch_recent_activity(
     *,
     limit: int = 12,

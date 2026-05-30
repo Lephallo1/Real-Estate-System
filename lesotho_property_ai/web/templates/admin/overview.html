@@ -4,7 +4,7 @@
 <section class="hero-panel">
   <div>
     <div class="eyebrow">Admin overview</div>
-    <p class="hero-copy">This control center stays connected to the real multimodal system. Open the KPI modules below to inspect live inventory, AI confidence, district coverage, and assignment progress without flooding the page.</p>
+    <p class="hero-copy">This control center stays connected to the real multimodal system. Open the KPI modules below to inspect live inventory, AI confidence, and district coverage without flooding the page.</p>
   </div>
   <div class="action-strip">
     <a class="secondary-btn" href="{{ url_for('admin.properties') }}">Open properties</a>
@@ -38,17 +38,6 @@
 </section>
 
 <section class="panel-grid two-up">
-  <details class="accordion">
-    <summary>Open assignment progress</summary>
-    <div class="accordion-body">
-      <div class="status-list">
-        {% for item in assignment_progress %}
-          <div><strong>{{ item.module }}</strong><span>{{ item.summary }}</span></div>
-        {% endfor %}
-      </div>
-    </div>
-  </details>
-
   <details class="accordion">
     <summary>Open key checkpoints</summary>
     <div class="accordion-body">

@@ -120,11 +120,13 @@ class MarketingAutomation:
                 f"mme e fumaneha {MarketingAutomation._environment_st(environment)}. {bedroom_note_st}{reason_sentence_st}{highlights_st} "
                 f"Tekanyo ya ho tshwana ke {match.overall_score:.2f}. Re ka o romella dintlha tse ding kapa ra hlophisa ketelo."
             )
+        hook = MarketingAutomation._english_hook(rank, title, place_text)
         return (
-            f"Hi {client['name']}, this is your {MarketingAutomation._rank_label_english(rank)}: {title} in {place_text} priced at {price_text}. "
-            f"It offers {int(property_row['bedrooms'])} bedrooms, is in {MarketingAutomation._environment_en(environment)}, "
-            f"and is in {condition.lower()} condition. {bedroom_note_en}{reason_sentence_en}{highlights_en} "
-            f"Match score: {match.overall_score:.2f}. Reply if you would like viewing details or similar options."
+            f"Hi {client['name']}, {hook} Priced at {price_text}, this {int(property_row['bedrooms'])}-bedroom option "
+            f"puts you in {MarketingAutomation._environment_en(environment)} with a home that is {MarketingAutomation._condition_phrase_en(condition)}. "
+            f"{bedroom_note_en}{reason_sentence_en}{highlights_en} "
+            "In plain terms, it is not just another listing; it is one of the clearest signals that your search is pointing in the right direction. "
+            f"Match confidence: {match.overall_score:.2f}. Reply if you would like viewing details, a side-by-side comparison, or similar homes before this opportunity moves."
         )
 
     @staticmethod
@@ -179,9 +181,10 @@ class MarketingAutomation:
             if channel == "social":
                 return f"{rank_label_st.title()} ya ntlo: {display_title} ho {district}"
             return f"{client['name']}, {rank_label_st}: {display_title} ho {district}"
+        hook = "Don't miss this match" if rank == 1 else "Worth a closer look"
         if channel == "social":
-            return f"Your {rank_label_en}: {display_title} in {district}"
-        return f"{client['name']}, your {rank_label_en} is {display_title}"
+            return f"{hook}: {display_title} in {district}"
+        return f"{client['name']}, {hook}: {display_title}"
 
     @staticmethod
     def _build_preview_text(*, property_row: pd.Series, display_title: str, language: str, rank: int) -> str:
@@ -192,7 +195,8 @@ class MarketingAutomation:
         rank_label_st = MarketingAutomation._rank_label_sesotho(rank)
         if language == "st":
             return f"{rank_label_st.title()}: {display_title}, dikamore tse {bedrooms}, {district}, theko ya {price_text}."
-        return f"{rank_label_en.title()}: {display_title} with {bedrooms} bedrooms in {district}, priced at {price_text}."
+        lead = "Strongest lead" if rank == 1 else f"{rank_label_en.title()} backup"
+        return f"{lead}: {display_title} with {bedrooms} bedrooms in {district} at {price_text}; open it before comparing weaker options."
 
     @staticmethod
     def _build_call_to_action(language: str, channel: str) -> str:
@@ -203,9 +207,9 @@ class MarketingAutomation:
                 else "Re romelle molaetsa haeba o batla dintlha tsa ketelo."
             )
         return (
-            "Reply to this message for viewing details."
+            "Reply to this message to lock in viewing details or compare this against similar homes."
             if channel == "email"
-            else "Send us a message if you want viewing details."
+            else "Send us a message to secure viewing details or compare similar homes."
         )
 
     @staticmethod
@@ -274,6 +278,26 @@ class MarketingAutomation:
             5: "fifth choice",
         }
         return labels.get(rank, f"choice #{rank}")
+
+    @staticmethod
+    def _english_hook(rank: int, title: str, place_text: str) -> str:
+        if rank == 1:
+            return (
+                f"pause on this one: your top match, {title} in {place_text}, deserves the first viewing slot."
+            )
+        rank_label = MarketingAutomation._rank_label_english(rank)
+        return (
+            f"this {rank_label} is still worth attention: {title} in {place_text} stayed competitive after the stronger filters ran."
+        )
+
+    @staticmethod
+    def _condition_phrase_en(value: str) -> str:
+        cleaned = str(value or "").strip().lower()
+        if cleaned in {"new", "good", "fair"}:
+            return f"in {cleaned} condition"
+        if cleaned in {"renovation needed", "needs work"}:
+            return "a renovation opportunity"
+        return "ready for review"
 
     @staticmethod
     def _rank_label_sesotho(rank: int) -> str:

@@ -28,6 +28,7 @@ class MatchingEngine:
         properties: pd.DataFrame,
         clients: pd.DataFrame,
         top_n: int = 3,
+        constraint_mode: str = "soft",
     ) -> pd.DataFrame:
         """Score every client/property pair and keep only the top N results."""
 
@@ -36,6 +37,10 @@ class MatchingEngine:
             structured_fallback = self._use_structured_fallback(client)
             scored = []
             for property_row in properties.itertuples(index=False):
+                if constraint_mode == "strict" and not self._passes_strict_constraints(client, property_row):
+                    continue
+                if constraint_mode == "near" and not self._passes_near_constraints(client, property_row):
+                    continue
                 if structured_fallback and self._is_over_budget(client, property_row):
                     continue
                 structured_details = self._structured_score(client, property_row)
@@ -179,6 +184,45 @@ class MatchingEngine:
         except (TypeError, ValueError):
             return False
         return budget_max > 0 and price > budget_max
+
+    @staticmethod
+    def _passes_budget_and_district(client, property_row) -> bool:
+        try:
+            budget_min = float(getattr(client, "budget_min", 0) or 0)
+            budget_max = float(getattr(client, "budget_max", 0) or 0)
+            price = float(getattr(property_row, "price", 0) or 0)
+        except (TypeError, ValueError):
+            return False
+        if budget_max <= 0 or price > budget_max:
+            return False
+        if budget_min > 0 and price < budget_min:
+            return False
+
+        preferred_districts = {
+            str(item).strip().lower()
+            for item in MatchingEngine._coerce_iterable(getattr(client, "preferred_districts", []))
+            if str(item).strip()
+        }
+        district = str(getattr(property_row, "district", "") or "").strip().lower()
+        if preferred_districts and district not in preferred_districts:
+            return False
+        return True
+
+    @staticmethod
+    def _passes_strict_constraints(client, property_row) -> bool:
+        if not MatchingEngine._passes_budget_and_district(client, property_row):
+            return False
+        preferred_bedrooms = int(float(getattr(client, "preferred_bedrooms", 0) or 0))
+        bedrooms = int(float(getattr(property_row, "bedrooms", 0) or 0))
+        return preferred_bedrooms <= 0 or bedrooms == preferred_bedrooms
+
+    @staticmethod
+    def _passes_near_constraints(client, property_row) -> bool:
+        if not MatchingEngine._passes_budget_and_district(client, property_row):
+            return False
+        preferred_bedrooms = int(float(getattr(client, "preferred_bedrooms", 0) or 0))
+        bedrooms = int(float(getattr(property_row, "bedrooms", 0) or 0))
+        return preferred_bedrooms > 0 and bedrooms != preferred_bedrooms
 
     @staticmethod
     def _structured_fallback_score(

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import ipaddress
 import re
+import socket
 import time
 from pathlib import Path
 from typing import Iterable
@@ -30,6 +32,44 @@ USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
     "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0 Safari/537.36"
 )
+
+MAX_IMAGE_BYTES = 8 * 1024 * 1024
+MAX_REDIRECTS = 3
+
+SOURCE_HOST_ALLOWLIST = {
+    "creativeproperties": {
+        "page": ("creativeproperties.co.ls", "www.creativeproperties.co.ls"),
+        "image": ("creativeproperties.co.ls", "www.creativeproperties.co.ls"),
+    },
+    "propmarket": {
+        "page": ("propmarket.co.ls", "www.propmarket.co.ls"),
+        "image": ("propmarket.co.ls", "www.propmarket.co.ls", ".r2.dev"),
+    },
+    "sotholand": {
+        "page": ("sotholandproperties.co.ls", "www.sotholandproperties.co.ls"),
+        "image": ("sotholandproperties.co.ls", "www.sotholandproperties.co.ls"),
+    },
+    "lesothohousing": {
+        "page": ("lesothohousing.org.ls", "www.lesothohousing.org.ls"),
+        "image": ("lesothohousing.org.ls", "www.lesothohousing.org.ls"),
+    },
+    "mestech": {
+        "page": ("mestech.co.ls", "www.mestech.co.ls"),
+        "image": ("mestech.co.ls", "www.mestech.co.ls"),
+    },
+    "mosoholdings": {
+        "page": ("mosoholdings.co.ls", "www.mosoholdings.co.ls"),
+        "image": ("mosoholdings.co.ls", "www.mosoholdings.co.ls"),
+    },
+}
+
+IMAGE_CONTENT_TYPE_SUFFIXES = {
+    "image/jpeg": ".jpg",
+    "image/jpg": ".jpg",
+    "image/png": ".png",
+    "image/webp": ".webp",
+    "image/gif": ".gif",
+}
 
 AMENITY_KEYWORDS = {
     "water": "water connection",
@@ -66,6 +106,64 @@ PROPERTY_TYPE_RULES = (
     ("office", "Commercial"),
     ("commercial", "Commercial"),
 )
+
+
+class UnsafeScraperURL(ValueError):
+    """Raised when a scraped URL points outside the safe fetch policy."""
+
+
+def _normalize_host(hostname: str | None) -> str:
+    if not hostname:
+        raise UnsafeScraperURL("URL is missing a hostname")
+    cleaned = hostname.strip().rstrip(".").lower()
+    try:
+        return cleaned.encode("idna").decode("ascii")
+    except UnicodeError as exc:
+        raise UnsafeScraperURL("URL hostname is not valid") from exc
+
+
+def _host_allowed(hostname: str, allowed_hosts: tuple[str, ...]) -> bool:
+    for allowed in allowed_hosts:
+        if allowed.startswith("."):
+            suffix = allowed.lower()
+            if hostname.endswith(suffix) and hostname != suffix.lstrip("."):
+                return True
+        elif hostname == allowed.lower():
+            return True
+    return False
+
+
+def _public_ip_only(hostname: str) -> bool:
+    try:
+        addresses = [ipaddress.ip_address(hostname)]
+    except ValueError:
+        try:
+            resolved = socket.getaddrinfo(hostname, None, proto=socket.IPPROTO_TCP)
+        except socket.gaierror as exc:
+            raise UnsafeScraperURL(f"Could not resolve host {hostname}") from exc
+        addresses = []
+        for item in resolved:
+            address = item[4][0]
+            try:
+                addresses.append(ipaddress.ip_address(address))
+            except ValueError:
+                continue
+
+    if not addresses:
+        raise UnsafeScraperURL(f"Could not resolve host {hostname}")
+
+    for address in addresses:
+        if not address.is_global:
+            raise UnsafeScraperURL(f"Blocked non-public network address for {hostname}")
+    return True
+
+
+def _safe_image_suffix(url: str, content_type: str) -> str:
+    media_type = content_type.split(";", 1)[0].strip().lower()
+    if media_type in IMAGE_CONTENT_TYPE_SUFFIXES:
+        return IMAGE_CONTENT_TYPE_SUFFIXES[media_type]
+    suffix = Path(urlparse(url).path).suffix.lower()
+    return suffix if suffix in {".jpg", ".jpeg", ".png", ".webp", ".gif"} else ".jpg"
 
 
 def scrape_live_properties(
@@ -123,11 +221,13 @@ def collect_live_property_records(
             report["sources"][source] = {
                 "records": int(len(dataframe)),
                 "listing_page": scraper.listing_reference,
+                "unsafe_url_skips": scraper.unsafe_url_skips,
             }
         except Exception as exc:
             report["sources"][source] = {
                 "records": 0,
                 "listing_page": scraper.listing_reference,
+                "unsafe_url_skips": scraper.unsafe_url_skips,
                 "error": str(exc),
             }
 
@@ -150,18 +250,52 @@ class WebScraperAdapter(ScraperAdapter):
         self.max_items = max_items if max_items and max_items > 0 else 1_000_000
         self.include_rentals = include_rentals
         self.max_images_per_property = max_images_per_property
+        self.unsafe_url_skips = 0
         self.session = requests.Session()
         self.session.headers.update({"User-Agent": USER_AGENT})
 
+    def _safe_absolute_url(self, url: str, *, purpose: str, base_url: str | None = None) -> str:
+        absolute_url = urljoin(base_url or self.listing_reference, str(url or "").strip())
+        parsed = urlparse(absolute_url)
+        if parsed.scheme not in {"http", "https"}:
+            raise UnsafeScraperURL("Only HTTP and HTTPS URLs are supported")
+        if parsed.username or parsed.password:
+            raise UnsafeScraperURL("URL userinfo is not allowed")
+        if parsed.port and parsed.port not in {80, 443}:
+            raise UnsafeScraperURL("Only standard HTTP/HTTPS ports are allowed")
+
+        hostname = _normalize_host(parsed.hostname)
+        allowed = SOURCE_HOST_ALLOWLIST.get(self.source_name, {}).get(purpose, ())
+        if not allowed or not _host_allowed(hostname, allowed):
+            raise UnsafeScraperURL(f"Host {hostname} is not allowed for {self.source_name} {purpose} fetches")
+        _public_ip_only(hostname)
+        return absolute_url
+
+    def _safe_get(self, url: str, *, purpose: str, stream: bool = False) -> requests.Response:
+        next_url = self._safe_absolute_url(url, purpose=purpose)
+        for _ in range(MAX_REDIRECTS + 1):
+            response = self.session.get(next_url, timeout=30, allow_redirects=False, stream=stream)
+            if response.is_redirect or response.is_permanent_redirect:
+                location = response.headers.get("Location", "")
+                response.close()
+                if not location:
+                    raise UnsafeScraperURL("Redirect response did not include a Location header")
+                next_url = self._safe_absolute_url(location, purpose=purpose, base_url=next_url)
+                continue
+            response.raise_for_status()
+            return response
+        raise UnsafeScraperURL("Too many redirects while fetching scraped URL")
+
+    def _mark_unsafe_url(self) -> None:
+        self.unsafe_url_skips += 1
+
     def get_soup(self, url: str) -> BeautifulSoup:
-        response = self.session.get(url, timeout=30)
-        response.raise_for_status()
+        response = self._safe_get(url, purpose="page")
         time.sleep(0.05)
         return BeautifulSoup(response.text, "lxml")
 
     def get_text(self, url: str) -> str:
-        response = self.session.get(url, timeout=30)
-        response.raise_for_status()
+        response = self._safe_get(url, purpose="page")
         time.sleep(0.05)
         return response.text
 
@@ -172,19 +306,42 @@ class WebScraperAdapter(ScraperAdapter):
 
         filtered = self._filter_image_urls(image_urls)[: self.max_images_per_property]
         for index, url in enumerate(filtered, start=1):
-            suffix = Path(urlparse(url).path).suffix or ".jpg"
-            destination = property_dir / f"image_{index}{suffix}"
-            if not destination.exists():
-                try:
-                    response = self.session.get(url, timeout=30)
-                    response.raise_for_status()
-                    if "image" not in response.headers.get("Content-Type", ""):
-                        continue
-                    destination.write_bytes(response.content)
-                    time.sleep(0.05)
-                except requests.RequestException:
+            try:
+                safe_url = self._safe_absolute_url(url, purpose="image")
+            except UnsafeScraperURL:
+                self._mark_unsafe_url()
+                continue
+
+            try:
+                response = self._safe_get(safe_url, purpose="image", stream=True)
+                content_type = response.headers.get("Content-Type", "")
+                if not content_type.lower().split(";", 1)[0].startswith("image/"):
+                    response.close()
                     continue
-            local_paths.append(str(destination))
+
+                suffix = _safe_image_suffix(safe_url, content_type)
+                destination = property_dir / f"image_{index}{suffix}"
+                if not destination.exists():
+                    total = 0
+                    chunks: list[bytes] = []
+                    for chunk in response.iter_content(chunk_size=64 * 1024):
+                        if not chunk:
+                            continue
+                        total += len(chunk)
+                        if total > MAX_IMAGE_BYTES:
+                            raise UnsafeScraperURL("Image response exceeded the allowed size")
+                        chunks.append(chunk)
+                    destination.write_bytes(b"".join(chunks))
+                    time.sleep(0.05)
+                response.close()
+            except UnsafeScraperURL:
+                self._mark_unsafe_url()
+                continue
+            except requests.RequestException:
+                continue
+
+            if destination.exists():
+                local_paths.append(str(destination))
         return local_paths
 
     @staticmethod
@@ -324,19 +481,19 @@ class WebScraperAdapter(ScraperAdapter):
             f"Tlotla ena e tshwanetse ho shejwa bakeng sa bareki ba batlang menyetla ya nnete Lesotho."
         ).replace("  ", " ").strip()
 
-    @staticmethod
-    def _filter_image_urls(urls: list[str]) -> list[str]:
+    def _filter_image_urls(self, urls: list[str]) -> list[str]:
         cleaned: list[str] = []
         for url in urls:
             lower = url.lower()
-            if not url.startswith("http"):
-                continue
-            if not re.search(r"\.(jpg|jpeg|png|webp)(?:\?|$)", lower):
+            try:
+                safe_url = self._safe_absolute_url(url, purpose="image")
+            except UnsafeScraperURL:
+                self._mark_unsafe_url()
                 continue
             if any(token in lower for token in ("logo", "icon", "favicon", "favi", "avatar")):
                 continue
-            if url not in cleaned:
-                cleaned.append(url)
+            if safe_url not in cleaned:
+                cleaned.append(safe_url)
         preferred = [
             url for url in cleaned if not re.search(r"-\d+x\d+\.(jpg|jpeg|png|webp)(?:\?|$)", url, re.I)
         ]

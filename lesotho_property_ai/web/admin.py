@@ -7,6 +7,7 @@ from statistics import mean
 import pandas as pd
 from flask import Blueprint, current_app, flash, redirect, render_template, request, session, url_for
 
+from lesotho_property_ai.auth_service import fetch_top_recommendation_runs
 from lesotho_property_ai.db import resolve_database_settings
 
 from .admin_actions import ADMIN_ACTIONS
@@ -85,6 +86,51 @@ def _bar_rows(values: dict[str, object] | None) -> list[dict[str, object]]:
     for row in rows:
         row["percent"] = round((row["value"] / maximum) * 100, 1) if maximum else 0.0
     return rows
+
+
+def _live_recommendation_runs(*, limit: int = 6, context_label: str = "live activity") -> list[dict[str, object]]:
+    try:
+        run_rows = fetch_top_recommendation_runs(limit=limit)
+    except Exception as exc:
+        flash(f"{context_label} could not be loaded from MySQL: {exc}", "warning")
+        return []
+
+    live_runs: list[dict[str, object]] = []
+    for row in run_rows:
+        prefix = str(row.get("artifact_prefix", "") or "").strip()
+        if not prefix:
+            continue
+        try:
+            bundle = load_recommendation_bundle(prefix)
+        except Exception:
+            continue
+        try:
+            cards = recommendation_cards(bundle, single_client=True)
+        except Exception:
+            cards = []
+        campaigns = bundle.get("campaigns", pd.DataFrame())
+        if not cards and (not isinstance(campaigns, pd.DataFrame) or campaigns.empty):
+            continue
+        label = f"{row.get('full_name') or (cards[0].get('client_name') if cards else '') or 'Customer'} · run {row.get('id')}"
+        live_runs.append(
+            {
+                "id": str(row.get("id")),
+                "label": label,
+                "bundle": bundle,
+                "cards": cards,
+                "row": row,
+            }
+        )
+    return live_runs
+
+
+def _select_live_run(live_runs: list[dict[str, object]], selected_id: str | None) -> tuple[dict[str, object] | None, str]:
+    selected_run_id = selected_id or (str(live_runs[0]["id"]) if live_runs else "")
+    selected_run = next((item for item in live_runs if item["id"] == selected_run_id), None)
+    if selected_run is None and live_runs:
+        selected_run = live_runs[0]
+        selected_run_id = str(selected_run["id"])
+    return selected_run, selected_run_id
 
 
 def _presentation_property_type_rows(values: dict[str, object] | None) -> list[dict[str, object]]:
@@ -283,13 +329,6 @@ def overview():
         page_title="Overview",
         sidebar_title="Admin Dashboard",
         overview_cards=overview_cards,
-        assignment_progress=[
-            {"module": "Module 1", "summary": "Real scraping across reachable Lesotho sources"},
-            {"module": "Module 2", "summary": "House vision models plus auxiliary bedroom/property-type classifiers"},
-            {"module": "Module 3", "summary": "Bilingual NLP processing and marketing text generation"},
-            {"module": "Module 4", "summary": "Fusion scoring, smart matching, and campaign automation"},
-            {"module": "Module 5", "summary": "Role-based Flask dashboard redesign"},
-        ],
         checkpoints=checkpoints,
         stock_snapshot=stock_card_rows(stock, limit=3),
     )
@@ -627,17 +666,21 @@ def recommendations():
 @admin_bp.get("/smart-matching")
 @role_required("admin")
 def smart_matching():
-    bundle = load_recommendation_bundle("house_recommendation")
-    cards = recommendation_cards(bundle, single_client=False)
-    grouped = grouped_cards(cards)
-    client_names = list(grouped.keys())
-    selected_client = request.args.get("client") or (client_names[0] if client_names else "")
-    selected_cards = grouped.get(selected_client, [])
+    live_runs = [run for run in _live_recommendation_runs(limit=6, context_label="Live Smart Matching activity") if run["cards"]]
+    selected_run, selected_run_id = _select_live_run(live_runs, request.args.get("run"))
+
+    selected_cards = selected_run["cards"] if selected_run else []
+    selected_client = str(selected_run["label"]) if selected_run else ""
     top_card = selected_cards[0] if selected_cards else None
+    bundle = selected_run["bundle"] if selected_run else {
+        "campaigns": pd.DataFrame(),
+        "metrics": {"recommendation": {"clients_profiled": len(live_runs), "matches_generated": 0}},
+        "fusion": {},
+    }
     campaign_frame = bundle["campaigns"]
     selected_campaigns = (
-        campaign_frame.loc[campaign_frame["client_name"].fillna("").astype(str) == selected_client].copy()
-        if not campaign_frame.empty and selected_client
+        campaign_frame.loc[campaign_frame["client_name"].fillna("").astype(str) == top_card.get("client_name", "")].copy()
+        if not campaign_frame.empty and top_card
         else pd.DataFrame()
     )
     return _render_admin(
@@ -647,7 +690,9 @@ def smart_matching():
         **_module_action_context("recommendations"),
         metrics=bundle.get("metrics", {}),
         fusion=bundle.get("fusion", {}),
-        client_names=client_names,
+        client_names=[str(item["label"]) for item in live_runs],
+        client_choices=[{"label": str(item["label"]), "run_id": str(item["id"])} for item in live_runs],
+        selected_run_id=selected_run_id,
         selected_client=selected_client,
         top_card=top_card,
         alternative_cards=selected_cards[1:4],
@@ -672,16 +717,14 @@ def smart_matching():
 @admin_bp.get("/campaigns")
 @role_required("admin")
 def campaigns():
-    bundle = load_recommendation_bundle("house_recommendation")
+    live_runs = _live_recommendation_runs(limit=6, context_label="Live Campaign activity")
+    selected_run, selected_run_id = _select_live_run(live_runs, request.args.get("run"))
+    bundle = selected_run["bundle"] if selected_run else {"campaigns": pd.DataFrame(), "marketing": {}}
     campaigns = bundle["campaigns"]
     marketing = bundle["marketing"]
-    client_names = sorted(campaigns["client_name"].dropna().astype(str).unique().tolist()) if not campaigns.empty else []
-    selected_client = request.args.get("client") or (client_names[0] if client_names else "")
-    filtered = (
-        campaigns.loc[campaigns["client_name"].fillna("").astype(str) == selected_client].copy()
-        if not campaigns.empty and selected_client
-        else campaigns.copy()
-    )
+    client_choices = [{"label": str(item["label"]), "run_id": str(item["id"])} for item in live_runs]
+    selected_client = str(selected_run["label"]) if selected_run else ""
+    filtered = campaigns.copy()
     preview_row = filtered.iloc[0].to_dict() if not filtered.empty else {}
     timeline_rows = []
     if preview_row:
@@ -697,7 +740,9 @@ def campaigns():
         sidebar_title="Campaigns",
         **_module_action_context("recommendations"),
         marketing=marketing,
-        client_names=client_names,
+        client_names=[choice["label"] for choice in client_choices],
+        client_choices=client_choices,
+        selected_run_id=selected_run_id,
         selected_client=selected_client,
         preview=preview_row,
         timeline_rows=timeline_rows,
