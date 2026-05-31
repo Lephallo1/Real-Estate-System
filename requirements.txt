@@ -1,18 +1,25 @@
-﻿pandas>=2.2
+# Core data processing
+pandas>=2.2
 numpy>=2.2
-Pillow>=11.0
+
+# Scraping and text cleanup
 requests>=2.33
 beautifulsoup4>=4.14
 lxml>=6.0
+
+# Web dashboard and deployment
 Flask>=3.1
 gunicorn>=23.0
+
+# Machine learning and computer vision
+Pillow>=11.0
 scikit-learn>=1.6
 torch>=2.6
 torchvision>=0.21
-sentence-transformers>=3.4
+
+# MySQL authentication
 mysql-connector-python>=9.3
 bcrypt>=4.1
 
-
-
-
+# Final report generation helper
+python-docx>=1.1

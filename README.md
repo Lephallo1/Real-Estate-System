@@ -1,151 +1,207 @@
-﻿# Multimodal Real Estate AI System
+# LesothoHomeAI
 
-An end-to-end Lesotho housing-market system built around:
+LesothoHomeAI is a multimodal AI real-estate recommendation and marketing system for the Lesotho housing market. It collects real property listings, cleans and curates the data, trains computer-vision models, processes English and Sesotho buyer preferences, fuses structured/text/vision signals, and presents recommendations through a Flask dashboard.
 
-- live property scraping from reachable Lesotho-related sources
-- rule-based cleaning and house-focused curation
-- computer vision for bedrooms, condition, style, environment, and property type
-- bilingual English/Sesotho NLP
-- multimodal property-client matching
-- personalized campaign generation
-- a Flask HTML/CSS frontend with **admin** and **customer** dashboards
-- MySQL-backed authentication and lightweight usage logging
+The project is designed for a live presentation: every dashboard claim maps back to source code, generated CSV/JSON artifacts, or a runnable terminal script.
 
-## Frontend Experience
+## Final Submission Pack
 
-The live frontend is now Flask-based.
+- Full report: [docs/FINAL_PROJECT_REPORT.docx](docs/FINAL_PROJECT_REPORT.docx)
+- Report source: [docs/FINAL_PROJECT_REPORT.md](docs/FINAL_PROJECT_REPORT.md)
+- Presentation script/runbook: [docs/PRESENTATION_SCRIPT_AND_DEMO_RUNBOOK.docx](docs/PRESENTATION_SCRIPT_AND_DEMO_RUNBOOK.docx)
+- Runbook source: [docs/PRESENTATION_SCRIPT_AND_DEMO_RUNBOOK.md](docs/PRESENTATION_SCRIPT_AND_DEMO_RUNBOOK.md)
+- Slides: [presentation/LesothoHomeAI_Final_Presentation.pptx](presentation/LesothoHomeAI_Final_Presentation.pptx)
 
-- `Admin Dashboard`
-  Internal control center for properties, scraping, data preparation, vision, NLP, fusion, smart matching, campaigns, analytics, and settings.
-- `Customer Dashboard`
-  Home-search experience where a buyer enters preferences, browses stock, receives recommendations, and reviews match explanations.
+## Current Evidence Snapshot
 
-The login layer uses **MySQL + bcrypt**:
+| Area | Current artifact evidence |
+| --- | --- |
+| Raw scraped records | 369 |
+| Cleaned records | 346 |
+| Raw image references | 1162 |
+| Clean image references | 1081 |
+| Residential curated rows | 213 |
+| CNN image rows | 697 |
+| NLP vocabulary size | 924 |
+| NLP query success rate | 100% |
+| Recommendation properties considered | 93 |
+| Demo matches generated | 18 |
+| Demo campaigns generated | 6 |
+| Mean top-match score | 0.724 |
+| Mean fusion reliability | 0.939 |
 
-- MySQL stores users and lightweight activity logs
-- bcrypt stores password hashes securely
-- the AI pipeline remains artifact-driven under `generated/artifacts/`
+## Main Features
+
+- Live property scraping from reachable Lesotho real-estate sources.
+- SSRF-hardened scraping with allowlisted hosts, private-network blocking, redirect checks, content-type validation, and image-size limits.
+- Data cleaning for prices, districts, property types, listing intent, bedrooms, bathrooms, amenities, and HTML-free descriptions.
+- House-focused curation for residential recommendation and CNN training.
+- PyTorch vision training for condition, style, environment, bedroom class, and property type.
+- Gemini-assisted uploaded-image demo when `GEMINI_API_KEY` is configured, while saved CNN metrics remain the real training evidence.
+- Explainable bilingual NLP for English and Sesotho preferences.
+- Fusion recommendation engine combining structured, text, and vision signals.
+- Strict customer search behavior: budget, district, and exact bedroom count are enforced for main results.
+- Campaign generation in English and Sesotho.
+- Role-based Flask dashboards for admin and customer users.
+- MySQL-backed authentication with bcrypt password hashes.
 
 ## Project Layout
 
-- `app.py`
-  Main Flask dashboard entrypoint.
-- `flask_app.py`
-  Explicit Flask app runner used by tests and local startup.
-- `main.py`
-  Original end-to-end CLI pipeline entrypoint.
-- `lesotho_property_ai/`
-  Main package with scraping, ML, matching, marketing, auth, and Flask web code.
-- `lesotho_property_ai/web/`
-  Active Flask routes, templates, static assets, and view helpers.
-- `lesotho_property_ai/db.py`
-  MySQL connection/configuration helpers.
-- `lesotho_property_ai/auth_service.py`
-  Authentication, password hashing, and activity logging helpers.
-- `scripts/`
-  CLI helpers such as:
-  - `scripts/init_mysql_auth.py`
-  - `scripts/seed_demo_users.py`
-  - `scripts/run_scraper.py`
-  - `scripts/prepare_modeling_dataset.py`
-  - `scripts/prepare_house_label_review.py`
-  - `scripts/apply_house_label_review.py`
-  - `scripts/train_house_vision_model.py`
-  - `scripts/train_house_bedroom_model.py`
-  - `scripts/train_residential_property_type_model.py`
-  - `scripts/evaluate_nlp_module.py`
-  - `scripts/evaluate_bedroom_improvement.py`
-  - `scripts/run_house_recommendation_demo.py`
-- `docs/`
-  Setup guides, runbooks, and demo notes.
-- `sql/mysql_auth_schema.sql`
-  Database schema for MySQL authentication and usage logs.
-- `tests/`
-  `unittest` coverage for the backend and Flask routes.
-- `generated/artifacts/`
-  Organized outputs grouped by module:
-  - `scraping/`
-  - `curation/`
-  - `review/`
-  - `vision/`
-  - `nlp/`
-  - `recommendation/`
-  - `pipeline/`
+| Path | Purpose |
+| --- | --- |
+| [flask_app.py](flask_app.py) | Flask app entrypoint used locally and by Railway/Gunicorn. |
+| [app.py](app.py) | Convenience app runner. |
+| [lesotho_property_ai/](lesotho_property_ai) | Main package for data, vision, NLP, matching, marketing, auth, and web code. |
+| [lesotho_property_ai/data/live_scrapers.py](lesotho_property_ai/data/live_scrapers.py) | Live scraping plus URL safety controls. |
+| [lesotho_property_ai/vision/training.py](lesotho_property_ai/vision/training.py) | CNN training logic. |
+| [lesotho_property_ai/vision/analyzer.py](lesotho_property_ai/vision/analyzer.py) | Uploaded-image analysis and fallback logic. |
+| [lesotho_property_ai/nlp/processor.py](lesotho_property_ai/nlp/processor.py) | Bilingual NLP scoring. |
+| [lesotho_property_ai/matching/engine.py](lesotho_property_ai/matching/engine.py) | Fusion scoring and recommendation ranking. |
+| [lesotho_property_ai/marketing/generator.py](lesotho_property_ai/marketing/generator.py) | Marketing subject lines, previews, and messages. |
+| [lesotho_property_ai/web/](lesotho_property_ai/web) | Flask routes, templates, static CSS, and dashboard helpers. |
+| [scripts/](scripts) | Terminal commands for setup, scraping, training, evaluation, and demos. |
+| [generated/artifacts/](generated/artifacts) | CSV/JSON outputs used by the dashboard and report. |
+| [tests/](tests) | Unit tests for backend and Flask behavior. |
 
-## MySQL Authentication Setup
+## Local Setup
 
-1. Copy the example secrets file:
+Install dependencies:
+
+```powershell
+py -m pip install -r requirements.txt
+```
+
+Create a local secrets file from the example:
 
 ```powershell
 Copy-Item .flask\secrets.example.toml .flask\secrets.toml
 ```
 
-2. Edit `.flask/secrets.toml` and provide:
+Edit `.flask/secrets.toml` with your own local database values. Do not commit real secrets.
 
-- `DB_HOST`
-- `DB_PORT`
-- `DB_NAME`
-- `DB_USER`
-- `DB_PASSWORD`
-
-3. Create the MySQL schema:
-
-```powershell
-python scripts/init_mysql_auth.py
+```toml
+DB_HOST = "localhost"
+DB_PORT = "3306"
+DB_NAME = "lesotho_property_ai_app"
+DB_USER = "root"
+DB_PASSWORD = "your-local-password"
+GEMINI_API_KEY = "optional-google-ai-studio-key"
 ```
 
-4. Seed the demo accounts:
+Initialize auth tables and demo users:
 
 ```powershell
-python scripts/seed_demo_users.py
+py scripts/init_mysql_auth.py
+py scripts/seed_demo_users.py
 ```
 
-5. Launch the dashboard:
+Run the Flask dashboard:
 
 ```powershell
-python app.py
+py flask_app.py
 ```
 
-Demo logins:
+Open the local app:
 
-- Admin: `admin@lesothohome.ai` / `admin123`
-- Customer: `user@lesothohome.ai` / `user123`
+```text
+http://127.0.0.1:5000/login
+```
 
-For full schema details and setup notes, see [docs/MYSQL_SETUP.md](docs/MYSQL_SETUP.md).
-For hosting, see [docs/RAILWAY_DEPLOYMENT.md](docs/RAILWAY_DEPLOYMENT.md).
+Demo accounts:
 
-## Quick Start
+```text
+Admin: admin@lesothohome.ai / admin123
+Customer: user@lesothohome.ai / user123
+```
 
-Run the main dashboard:
+## Railway Setup
+
+Railway should use service variables, not committed secrets.
+
+Required `web` service variables:
+
+```text
+FLASK_SECRET_KEY
+DB_HOST
+DB_PORT
+DB_NAME
+DB_USER
+DB_PASSWORD
+GEMINI_API_KEY
+```
+
+For the best Railway-to-Railway database connection, use the private MySQL host and port when the web service and MySQL service are in the same project/environment.
+
+Recommended Gunicorn start command for presentation traffic:
+
+```text
+gunicorn flask_app:app --workers 2 --threads 8 --timeout 120
+```
+
+Database health check:
+
+```text
+/health/database
+```
+
+## Pipeline Commands
+
+Run the main real-data and modeling workflow:
 
 ```powershell
-python app.py
+py scripts/run_scraper.py --real-only
+py scripts/prepare_modeling_dataset.py
+py scripts/train_house_vision_model.py
+py scripts/train_house_bedroom_model.py
+py scripts/train_residential_property_type_model.py
+py scripts/evaluate_nlp_module.py
+py scripts/run_house_recommendation_demo.py
 ```
 
-Run the main training/evaluation helpers:
+Build the final submission pack:
 
 ```powershell
-python scripts/train_house_vision_model.py
-python scripts/train_house_bedroom_model.py
-python scripts/train_residential_property_type_model.py
-python scripts/evaluate_nlp_module.py
-python scripts/evaluate_bedroom_improvement.py
-python scripts/run_house_recommendation_demo.py --listing-intent sale --top-n 3 --clients 6
+py scripts/build_final_submission_pack.py
 ```
 
-Run the tests:
+## Testing
+
+Run all tests:
 
 ```powershell
-python -m unittest discover -s tests -v
+py -m unittest discover -s tests -v
 ```
 
-## Notes
+Useful quick checks:
 
-- The real-data workflow remains the primary path.
-- Generated model and dashboard artifacts live under `generated/artifacts/`, grouped by module.
-- Real scraped images live under `generated/images/live/`.
-- Temporary test folders and disposable logs can be removed safely.
-- MySQL is used for login and lightweight usage logs only; model and recommendation outputs remain file-based for v1.
+```powershell
+py -m compileall lesotho_property_ai scripts
+py -m pip check
+```
 
+## Presentation Strategy
 
+The recommended live presentation flow is:
 
+1. Explain the project overview and modules.
+2. Show the dashboard tab for the current module.
+3. Open the matching code file in VS Code.
+4. Point to generated artifacts that prove the output.
+5. Move to the next group member.
+
+Use [docs/PRESENTATION_SCRIPT_AND_DEMO_RUNBOOK.docx](docs/PRESENTATION_SCRIPT_AND_DEMO_RUNBOOK.docx) for exact speaker cues, code files, dashboard tabs, and common lecturer questions.
+
+## Security Notes
+
+- Real secrets must stay in `.flask/secrets.toml` locally or Railway Variables in production.
+- `.flask/secrets.example.toml` is safe to commit; `.flask/secrets.toml` is not.
+- Passwords are hashed with bcrypt.
+- Live scraping is restricted to known hosts and blocks unsafe/private-network targets.
+- The Gemini key is optional and only supports the uploaded-image demo path.
+
+## Known Limitations
+
+- Exact bedroom prediction from exterior images is naturally difficult; customer-entered bedroom count is therefore treated as a strict structured filter.
+- More labeled house images would improve CNN generalization.
+- More Sesotho listing text would improve bilingual NLP.
+- A production-grade version should add database migrations, object storage, background queues, monitoring, and rate limiting.
