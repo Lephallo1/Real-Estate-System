@@ -19,6 +19,22 @@
   {% endfor %}
 </section>
 
+<section class="panel-card">
+  <div class="panel-head"><h2>Live recommendation activity</h2></div>
+  {% if client_choices %}
+    <p class="panel-copy">These analytics are connected to recent customer recommendation runs. Pick a live run to inspect its top matches, campaign mix, and fusion reliability.</p>
+    <div class="chip-row">
+      {% for choice in client_choices %}
+        <a class="chip {% if choice.run_id == selected_run_id %}active{% endif %}" href="{{ url_for('admin.analytics', run=choice.run_id) }}">{{ choice.label }}</a>
+      {% endfor %}
+    </div>
+    {% set table = live_recommendation_table %}
+    {% include "partials/table.html" %}
+  {% else %}
+    <p class="panel-copy">No live customer recommendation runs are available yet. When customers search for homes, their strongest runs will appear here automatically.</p>
+  {% endif %}
+</section>
+
 <section class="panel-grid two-up">
   <article class="panel-card">
     <div class="panel-head"><h2>Source mix</h2></div>

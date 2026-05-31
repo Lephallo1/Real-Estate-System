@@ -270,6 +270,24 @@ def search():
                 )
                 if near_prefix and near_matches_generated:
                     session["last_near_recommendation_prefix"] = near_prefix
+                    if not matches_generated and near_result is not None:
+                        try:
+                            record_recommendation_run(
+                                int(session["user_id"]),
+                                search_request_id=search_request_id,
+                                top_n=max(top_n, 5),
+                                listing_intent=listing_intent,
+                                properties_considered=int(
+                                    near_result.metrics["recommendation"].get("properties_considered", 0)
+                                ),
+                                matches_generated=near_matches_generated,
+                                mean_top_match_score=float(
+                                    near_result.metrics["recommendation"].get("mean_top_match_score", 0.0)
+                                ),
+                                artifact_prefix=near_prefix,
+                            )
+                        except Exception as exc:
+                            flash(f"MySQL near-match logging did not complete: {exc}", "warning")
                 else:
                     session.pop("last_near_recommendation_prefix", None)
                 if matches_generated:
@@ -348,9 +366,26 @@ def property_detail(property_id: str):
         flash("Run a search first to inspect a matched home.", "info")
         return redirect(url_for("customer.search"))
 
-    bundle = load_recommendation_bundle(session.get("last_recommendation_prefix", ""))
-    cards = recommendation_cards(bundle, single_client=True)
-    selected = next((card for card in cards if card["property_id"] == property_id), None)
+    source = request.args.get("source", "strict")
+    prefixes: list[str] = []
+    strict_prefix = str(session.get("last_recommendation_prefix", "") or "")
+    near_prefix = str(session.get("last_near_recommendation_prefix", "") or "")
+    if source == "near" and near_prefix:
+        prefixes.append(near_prefix)
+    if strict_prefix:
+        prefixes.append(strict_prefix)
+    if source != "near" and near_prefix:
+        prefixes.append(near_prefix)
+
+    selected = None
+    for prefix in dict.fromkeys(prefixes):
+        try:
+            cards = recommendation_cards(load_recommendation_bundle(prefix), single_client=True)
+        except Exception:
+            continue
+        selected = next((card for card in cards if card["property_id"] == property_id), None)
+        if selected:
+            break
     if not selected:
         flash("That matched property could not be found.", "warning")
         return redirect(url_for("customer.recommendations"))

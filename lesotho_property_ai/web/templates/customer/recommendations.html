@@ -72,7 +72,7 @@
       <div class="property-grid compact">
         {% for card in near_cards %}
           {% set property = card.property %}
-          {% set detail_href = none %}
+          {% set detail_href = url_for('customer.property_detail', property_id=card.property_id, source='near') %}
           {% include "partials/property_card.html" %}
         {% endfor %}
       </div>

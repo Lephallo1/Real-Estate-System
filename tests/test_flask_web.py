@@ -187,6 +187,87 @@ class FlaskWebTests(unittest.TestCase):
         self.assertIn("No exact matches found", body)
         self.assertNotIn("Internal Server Error", body)
 
+    def test_near_recommendations_have_detail_links_and_messages(self) -> None:
+        import pandas as pd
+
+        self._login_customer_session()
+        strict_bundle = {
+            "properties": pd.DataFrame(),
+            "matches": pd.DataFrame(),
+            "campaigns": pd.DataFrame(),
+            "metrics": {"recommendation": {"properties_considered": 1, "matches_generated": 0}},
+            "fusion": {},
+            "marketing": {},
+        }
+        near_bundle = {
+            "properties": pd.DataFrame(
+                [
+                    {
+                        "property_id": "near-house",
+                        "title": "Near Match House",
+                        "district": "Maseru",
+                        "locality": "Maseru West",
+                        "price": 1200000,
+                        "bedrooms": 4,
+                        "bathrooms": 2,
+                        "property_type": "House",
+                        "listing_intent": "sale",
+                        "description_en": "A strong near-bedroom option.",
+                    }
+                ]
+            ),
+            "matches": pd.DataFrame(
+                [
+                    {
+                        "client_id": "CUSTOMER-1",
+                        "client_name": "Test Customer",
+                        "property_id": "near-house",
+                        "rank": 1,
+                        "overall_score": 0.81,
+                        "structured_score": 0.77,
+                        "text_score": 0.66,
+                        "vision_score": 0.72,
+                        "fusion_reliability": 0.84,
+                        "recommendation_reasons": "Different bedroom count, but still inside budget and district.",
+                        "shared_text_cues": "parking",
+                    }
+                ]
+            ),
+            "campaigns": pd.DataFrame(
+                [
+                    {
+                        "client_id": "CUSTOMER-1",
+                        "client_name": "Test Customer",
+                        "property_id": "near-house",
+                        "rank": 1,
+                        "message": "Near-generated live message for this matched home.",
+                    }
+                ]
+            ),
+            "metrics": {"recommendation": {"properties_considered": 1, "matches_generated": 1}},
+            "fusion": {},
+            "marketing": {},
+        }
+        with self.client.session_transaction() as session:
+            session["customer_has_results"] = True
+            session["last_recommendation_prefix"] = "strict-prefix"
+            session["last_near_recommendation_prefix"] = "near-prefix"
+
+        def load_bundle(prefix: str) -> dict[str, object]:
+            return near_bundle if prefix == "near-prefix" else strict_bundle
+
+        with patch("lesotho_property_ai.web.customer.load_recommendation_bundle", side_effect=load_bundle):
+            response = self.client.get("/customer/recommendations")
+            detail_response = self.client.get("/customer/recommendations/near-house?source=near")
+
+        body = response.get_data(as_text=True)
+        detail_body = detail_response.get_data(as_text=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("/customer/recommendations/near-house?source=near", body)
+        self.assertIn("Why this match", body)
+        self.assertEqual(detail_response.status_code, 200)
+        self.assertIn("Near-generated live message for this matched home.", detail_body)
+
     def test_admin_new_pages_load_with_session(self) -> None:
         self._login_admin_session()
         for route in (
@@ -253,6 +334,76 @@ class FlaskWebTests(unittest.TestCase):
         self.assertIn("Live Buyer", body)
         self.assertIn("Live buyer match", body)
         self.assertIn("This message came from live customer activity.", body)
+
+    def test_analytics_page_uses_live_recommendation_runs(self) -> None:
+        import pandas as pd
+
+        self._login_admin_session()
+        live_bundle = {
+            "properties": pd.DataFrame(
+                [
+                    {
+                        "property_id": "live-house",
+                        "title": "Live Analytics House",
+                        "district": "Maseru",
+                        "locality": "Maseru West",
+                        "price": 1500000,
+                        "bedrooms": 3,
+                        "property_type": "House",
+                    }
+                ]
+            ),
+            "matches": pd.DataFrame(
+                [
+                    {
+                        "client_id": "CUSTOMER-2",
+                        "client_name": "Live Buyer",
+                        "property_id": "live-house",
+                        "rank": 1,
+                        "overall_score": 0.93,
+                        "structured_score": 0.91,
+                        "text_score": 0.84,
+                        "vision_score": 0.88,
+                        "fusion_reliability": 0.9,
+                    }
+                ]
+            ),
+            "campaigns": pd.DataFrame(
+                [
+                    {
+                        "client_id": "CUSTOMER-2",
+                        "client_name": "Live Buyer",
+                        "property_id": "live-house",
+                        "rank": 1,
+                        "message": "Live analytics campaign text.",
+                    }
+                ]
+            ),
+            "marketing": {
+                "mean_estimated_engagement_score": 0.87,
+                "channel_counts": {"dashboard": 1},
+            },
+            "fusion": {"mean_fusion_reliability": 0.9},
+            "metrics": {"recommendation": {"matches_generated": 1}},
+        }
+        with patch(
+            "lesotho_property_ai.web.admin.fetch_top_recommendation_runs",
+            return_value=[
+                {
+                    "id": 77,
+                    "full_name": "Live Buyer",
+                    "artifact_prefix": "house_user_2_live",
+                    "mean_top_match_score": 0.93,
+                    "matches_generated": 1,
+                }
+            ],
+        ), patch("lesotho_property_ai.web.admin.load_recommendation_bundle", return_value=live_bundle):
+            response = self.client.get("/admin/analytics")
+        body = response.get_data(as_text=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Live recommendation activity", body)
+        self.assertIn("Live Buyer", body)
+        self.assertIn("0.93", body)
 
     def test_vision_page_renders_scene_description_row(self) -> None:
         self._login_admin_session()

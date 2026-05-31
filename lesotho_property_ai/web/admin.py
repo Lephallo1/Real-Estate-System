@@ -770,6 +770,25 @@ def analytics():
     bedroom_comparison = load_artifact_json("house_bedroom_comparison.json")
     marketing_summary = load_artifact_json("house_recommendation_marketing_summary.json")
     fusion_summary = load_artifact_json("house_recommendation_fusion_summary.json")
+    live_runs = _live_recommendation_runs(limit=6, context_label="Live Analytics activity")
+    selected_run, selected_run_id = _select_live_run(live_runs, request.args.get("run"))
+    selected_cards = selected_run["cards"] if selected_run else []
+    selected_bundle = selected_run["bundle"] if selected_run else {}
+    live_marketing_summary = selected_bundle.get("marketing", {}) or marketing_summary
+    live_fusion_summary = selected_bundle.get("fusion", {}) or fusion_summary
+    live_rows = []
+    for card in selected_cards:
+        property_data = card.get("property", {})
+        live_rows.append(
+            {
+                "client_name": card.get("client_name", ""),
+                "property_title": property_data.get("title", ""),
+                "price": property_data.get("price", ""),
+                "bedrooms": property_data.get("bedrooms", ""),
+                "overall_score": card.get("overall_score", 0.0),
+                "fusion_reliability": card.get("fusion_reliability", 0.0),
+            }
+        )
     return _render_admin(
         "admin/analytics.html",
         page_title="Analytics",
@@ -779,7 +798,7 @@ def analytics():
             {"label": "Clean Records", "value": int(scrape_summary.get("clean_records", 0))},
             {"label": "Style Accuracy", "value": _safe_task_accuracy(vision_metrics, "style")},
             {"label": "Condition Accuracy", "value": _safe_task_accuracy(vision_metrics, "condition")},
-            {"label": "Engagement Mean", "value": marketing_summary.get("mean_estimated_engagement_score", 0.0)},
+            {"label": "Live Engagement Mean", "value": live_marketing_summary.get("mean_estimated_engagement_score", 0.0)},
         ],
         source_bars=_bar_rows(scrape_summary.get("clean_source_counts", {})),
         model_bars=[
@@ -788,8 +807,23 @@ def analytics():
             {"label": "Bedroom", "value": bedroom_comparison.get("improved_grouped_test_property_accuracy", 0.0), "percent": round(_numeric(bedroom_comparison.get("improved_grouped_test_property_accuracy", 0.0)) * 100, 1)},
             {"label": "Property Type", "value": load_artifact_json("residential_property_type_metrics.json").get("tasks", {}).get("cnn_property_type", {}).get("test", {}).get("property_accuracy", 0.0), "percent": round(_numeric(load_artifact_json("residential_property_type_metrics.json").get("tasks", {}).get("cnn_property_type", {}).get("test", {}).get("property_accuracy", 0.0)) * 100, 1)},
         ],
-        campaign_bars=_bar_rows(marketing_summary.get("channel_counts", {})),
-        fusion=fusion_summary,
+        campaign_bars=_bar_rows(live_marketing_summary.get("channel_counts", {})),
+        fusion=live_fusion_summary,
+        client_choices=[{"label": str(item["label"]), "run_id": str(item["id"])} for item in live_runs],
+        selected_run_id=selected_run_id,
+        selected_client=str(selected_run["label"]) if selected_run else "",
+        live_recommendation_table=preview_frame(
+            pd.DataFrame(live_rows),
+            [
+                "client_name",
+                "property_title",
+                "price",
+                "bedrooms",
+                "overall_score",
+                "fusion_reliability",
+            ],
+            limit=6,
+        ),
     )
 
 
