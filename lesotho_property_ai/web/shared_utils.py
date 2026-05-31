@@ -54,7 +54,12 @@ def load_json(path: Path) -> dict[str, object]:
 
 
 def load_csv(path: Path) -> pd.DataFrame:
-    return pd.read_csv(path) if path.exists() else pd.DataFrame()
+    if not path.exists():
+        return pd.DataFrame()
+    try:
+        return pd.read_csv(path)
+    except pd.errors.EmptyDataError:
+        return pd.DataFrame()
 
 
 def decode_nested_serialized_value(value, max_depth: int = 4):

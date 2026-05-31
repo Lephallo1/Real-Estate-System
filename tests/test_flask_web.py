@@ -165,6 +165,28 @@ class FlaskWebTests(unittest.TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertIn("/customer/recommendations", response.headers.get("Location", ""))
 
+    def test_customer_search_no_exact_matches_page_does_not_crash(self) -> None:
+        self._login_customer_session()
+        response = self.client.post(
+            "/customer/search",
+            data={
+                "listing_intent": "sale",
+                "preferred_language": "en",
+                "preferred_districts": ["Maseru"],
+                "budget_min": "1",
+                "budget_max": "10",
+                "preferred_bedrooms": "5",
+                "top_n": "3",
+                "preference_en": "",
+                "preference_st": "",
+            },
+            follow_redirects=True,
+        )
+        body = response.get_data(as_text=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("No exact matches found", body)
+        self.assertNotIn("Internal Server Error", body)
+
     def test_admin_new_pages_load_with_session(self) -> None:
         self._login_admin_session()
         for route in (

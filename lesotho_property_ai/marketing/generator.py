@@ -9,6 +9,30 @@ from datetime import datetime, timezone
 import pandas as pd
 
 
+CAMPAIGN_COLUMNS = [
+    "campaign_id",
+    "client_id",
+    "client_name",
+    "property_id",
+    "property_title",
+    "rank",
+    "channel",
+    "language",
+    "campaign_variant",
+    "subject_line",
+    "preview_text",
+    "message",
+    "call_to_action",
+    "recommendation_reasons",
+    "status",
+    "delivery_state",
+    "recommended_send_window",
+    "sent_at_utc",
+    "match_score",
+    "estimated_engagement_score",
+]
+
+
 class MarketingAutomation:
     def generate(
         self,
@@ -82,7 +106,7 @@ class MarketingAutomation:
                     "estimated_engagement_score": estimated_engagement,
                 }
             )
-        return pd.DataFrame(records)
+        return pd.DataFrame(records, columns=CAMPAIGN_COLUMNS)
 
     @staticmethod
     def _build_message(client: pd.Series, property_row: pd.Series, match, language: str) -> str:
