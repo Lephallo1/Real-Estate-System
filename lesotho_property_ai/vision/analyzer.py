@@ -11,6 +11,8 @@ import hashlib
 import json
 import os
 import pickle
+import time
+import urllib.error
 import urllib.request
 import base64
 import tomllib
@@ -49,6 +51,13 @@ NON_PROPERTY_HINT_KEYWORDS = (
     "notebook",
     "television",
     "web site",
+)
+DEFAULT_GEMINI_MODELS = (
+    "gemini-flash-lite-latest",
+    "gemini-2.0-flash-lite",
+    "gemini-flash-latest",
+    "gemini-2.0-flash",
+    "gemini-2.5-flash",
 )
 
 
@@ -411,6 +420,21 @@ class PropertyVisionAnalyzer:
             return False
         return True
 
+    @staticmethod
+    def _gemini_model_names() -> tuple[str, ...]:
+        configured = (
+            os.environ.get("GEMINI_MODEL", "").strip()
+            or _local_secret_value("GEMINI_MODEL")
+        )
+        models: list[str] = []
+        if configured:
+            models.append(configured.removeprefix("models/"))
+        for model in DEFAULT_GEMINI_MODELS:
+            normalized = model.removeprefix("models/")
+            if normalized not in models:
+                models.append(normalized)
+        return tuple(models)
+
     def analyze(self, properties: pd.DataFrame) -> VisionAnalysisResult:
         """Prefer saved training predictions so the demo uses the trained models."""
 
@@ -483,32 +507,42 @@ class PropertyVisionAnalyzer:
             },
         }
 
-        try:
-            request = urllib.request.Request(
-                "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
-                data=json.dumps(payload).encode("utf-8"),
-                headers={
-                    "content-type": "application/json",
-                    "x-goog-api-key": api_key,
-                },
-                method="POST",
-            )
-            with urllib.request.urlopen(request, timeout=12) as response:
-                raw = json.loads(response.read().decode("utf-8"))
-            parts = raw.get("candidates", [{}])[0].get("content", {}).get("parts", [])
-            text = "".join(str(part.get("text", "")) for part in parts if isinstance(part, dict)).strip()
-            if not text:
-                return None
-            start = text.find("{")
-            end = text.rfind("}")
-            if start == -1 or end == -1 or end <= start:
-                return None
-            parsed = json.loads(text[start : end + 1])
-            parsed["analysis_source"] = "gemini"
-            parsed["analysis_source_label"] = "Gemini"
-            return parsed
-        except Exception:
-            return None
+        for model_name in PropertyVisionAnalyzer._gemini_model_names():
+            model_path = model_name.removeprefix("models/")
+            for attempt in range(2):
+                try:
+                    request = urllib.request.Request(
+                        f"https://generativelanguage.googleapis.com/v1beta/models/{model_path}:generateContent",
+                        data=json.dumps(payload).encode("utf-8"),
+                        headers={
+                            "content-type": "application/json",
+                            "x-goog-api-key": api_key,
+                        },
+                        method="POST",
+                    )
+                    with urllib.request.urlopen(request, timeout=12) as response:
+                        raw = json.loads(response.read().decode("utf-8"))
+                    parts = raw.get("candidates", [{}])[0].get("content", {}).get("parts", [])
+                    text = "".join(str(part.get("text", "")) for part in parts if isinstance(part, dict)).strip()
+                    if not text:
+                        break
+                    start = text.find("{")
+                    end = text.rfind("}")
+                    if start == -1 or end == -1 or end <= start:
+                        break
+                    parsed = json.loads(text[start : end + 1])
+                    parsed["analysis_source"] = "gemini"
+                    parsed["analysis_source_label"] = "Gemini"
+                    parsed["gemini_model"] = model_path
+                    return parsed
+                except urllib.error.HTTPError as exc:
+                    if exc.code in {429, 500, 502, 503, 504} and attempt == 0:
+                        time.sleep(0.35)
+                        continue
+                    break
+                except Exception:
+                    break
+        return None
 
     @staticmethod
     def _analyze_image_with_claude(image_path: Path) -> dict[str, Any] | None:
@@ -710,6 +744,8 @@ class PropertyVisionAnalyzer:
             "analysis_source": source_name,
             "analysis_source_label": source_label,
             "analysis_display_label": display_source_label,
+            "analysis_model": str(result.get("analysis_model", result.get("gemini_model", "")) or ""),
+            "gemini_model": str(result.get("gemini_model", "") or ""),
         }
 
     def analyze_uploaded_images(self, image_paths: list[str]) -> dict[str, Any]:
@@ -754,6 +790,15 @@ class PropertyVisionAnalyzer:
             "",
         )
         used_llm = any(str(row["scope"].get("analysis_source", "")).strip() for row in per_image)
+        best_overall_scope = max(per_image, key=lambda row: float(row["scope"]["support_score"]))["scope"]
+        analysis_source = str(best_overall_scope.get("analysis_source", "") or "").strip()
+        analysis_source_label = str(best_overall_scope.get("analysis_source_label", "") or "").strip()
+        analysis_display_label = str(
+            best_overall_scope.get("analysis_display_label", llm_display_label) or llm_display_label
+        ).strip()
+        analysis_model = str(
+            best_overall_scope.get("analysis_model", best_overall_scope.get("gemini_model", "")) or ""
+        ).strip()
         if not supported_images:
             strongest = max(per_image, key=lambda row: float(row["scope"]["support_score"]))
             strongest_property_type = str(strongest["scope"].get("property_type", "Out of scope") or "Out of scope")
@@ -776,6 +821,11 @@ class PropertyVisionAnalyzer:
                     strongest["scope"].get("scene_description", strongest["scope"]["scene_hint"]) or strongest["scope"]["scene_hint"]
                 ),
                 "scope_similarity": round(float(strongest["scope"]["top_similarity"]), 3),
+                "analysis_source": str(strongest["scope"].get("analysis_source", analysis_source) or analysis_source),
+                "analysis_source_label": str(strongest["scope"].get("analysis_source_label", analysis_source_label) or analysis_source_label),
+                "analysis_display_label": str(strongest["scope"].get("analysis_display_label", analysis_display_label) or analysis_display_label),
+                "analysis_model": str(strongest["scope"].get("analysis_model", analysis_model) or analysis_model),
+                "gemini_model": str(strongest["scope"].get("gemini_model", "") or ""),
                 "prefill": {},
             }
 
@@ -850,6 +900,11 @@ class PropertyVisionAnalyzer:
                 "scene_hint": best_scope["scene_hint"],
                 "scene_description": scene_description,
                 "scope_similarity": round(float(best_scope["top_similarity"]), 3),
+                "analysis_source": str(best_scope.get("analysis_source", analysis_source) or analysis_source),
+                "analysis_source_label": str(best_scope.get("analysis_source_label", analysis_source_label) or analysis_source_label),
+                "analysis_display_label": str(best_scope.get("analysis_display_label", analysis_display_label) or analysis_display_label),
+                "analysis_model": str(best_scope.get("analysis_model", analysis_model) or analysis_model),
+                "gemini_model": str(best_scope.get("gemini_model", "") or ""),
                 "prefill": {},
             }
 
@@ -943,6 +998,11 @@ class PropertyVisionAnalyzer:
             "scene_hint": best_scope["scene_hint"],
             "scene_description": scene_description,
             "scope_similarity": round(float(best_scope["top_similarity"]), 3),
+            "analysis_source": str(best_scope.get("analysis_source", analysis_source) or analysis_source),
+            "analysis_source_label": str(best_scope.get("analysis_source_label", analysis_source_label) or analysis_source_label),
+            "analysis_display_label": str(best_scope.get("analysis_display_label", analysis_display_label) or analysis_display_label),
+            "analysis_model": str(best_scope.get("analysis_model", analysis_model) or analysis_model),
+            "gemini_model": str(best_scope.get("gemini_model", "") or ""),
             "prefill": prefill_payload,
         }
 
